@@ -1,129 +1,111 @@
-const { createCanvas, loadImage } = require("canvas");
 const axios = require("axios");
 const fs = require("fs-extra");
+const { loadImage, createCanvas } = require("canvas");
 const path = require("path");
+
+const VIP_PATH = path.join(__dirname, "cache", "vip.json");
+const OWNERS = ["61578418080601", "61557991443492"];
+const ADMINS = ["100060606189407", "61576296543095", "61554678316179", "100091527859576"];
 
 module.exports = {
   config: {
     name: "pair",
-    author: "xnil",
-    role: 0,
-    shortDescription: "Create romantic pairing",
+    countDown: 10,
+    role: 2,
+    shortDescription: { en: "Get to know your partner" },
+    longDescription: { en: "Know your destiny and see who completes your life" },
     category: "love",
-    guide: "{pn}"
+    guide: { en: "{pn}" },
   },
-  onStart: async function ({ api, event, usersData }) {
-    try {
-      const id1 = event.senderID;
-      const name1 = await usersData.getName(id1);
-      const ThreadInfo = await api.getThreadInfo(event.threadID);
-      const all = ThreadInfo.userInfo;
 
-      const botID = api.getCurrentUserID();
-      const senderGender = all.find(u => u.id === id1)?.gender || "unknown";
+  onStart: async function ({ api, event, usersData, threadsData, message }) {
+    // --- Load VIP data ---
+    if (!fs.existsSync(VIP_PATH)) fs.writeFileSync(VIP_PATH, JSON.stringify([]));
+    const vipData = JSON.parse(fs.readFileSync(VIP_PATH));
+    const sender = String(event.senderID);
 
-      // Filter opposite gender only
-      let candidates = all.filter(u => u.id !== id1 && u.id !== botID && u.gender && u.gender !== senderGender);
+    const senderIsOwner = OWNERS.includes(sender);
+    const senderIsAdmin = ADMINS.includes(sender);
+    const senderIsVIP = vipData.some(u => u.uid === sender);
 
-      if (candidates.length === 0) {
-        return api.sendMessage("❌ No suitable person to pair with in this chat.", event.threadID);
+    // --- VIP access check ---
+    if (!senderIsOwner && !senderIsVIP) {
+      if (senderIsAdmin) {
+        return message.reply("⚠️ Admins must be VIP to use this command!");
+      } else {
+        return message.reply("❌ Sorry, you need to be a VIP to use this feature!");
       }
-
-      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
-      const id2 = chosen.id;
-      const name2 = await usersData.getName(id2);
-
-      const canvas = createCanvas(1000, 600);
-      const ctx = canvas.getContext("2d");
-
-      const createRomanticBackground = () => {
-        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-        gradient.addColorStop(0, "#ff9a9e");
-        gradient.addColorStop(0.5, "#fad0c4");
-        gradient.addColorStop(1, "#fbc2eb");
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.fillStyle = "rgba(255,255,255,0.3)";
-        for (let i = 0; i < 50; i++) {
-          const x = Math.random() * canvas.width;
-          const y = Math.random() * canvas.height;
-          const radius = Math.random() * 5 + 2;
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.font = "bold 60px Arial";
-        ctx.fillStyle = "#ffffff";
-        ctx.textAlign = "center";
-        ctx.fillText("❤️ Romantic Match ❤️", canvas.width / 2, 80);
-      };
-
-      createRomanticBackground();
-
-      const [avatar1, avatar2] = await Promise.all([
-        axios.get(`https://graph.facebook.com/${id1}/picture?width=720&height=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`, { responseType: "arraybuffer" }),
-        axios.get(`https://graph.facebook.com/${id2}/picture?width=720&height=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`, { responseType: "arraybuffer" })
-      ]);
-
-      const tempDir = path.join(__dirname, "temp");
-      await fs.ensureDir(tempDir);
-      const avatar1Path = path.join(tempDir, `av1_${Date.now()}.png`);
-      const avatar2Path = path.join(tempDir, `av2_${Date.now()}.png`);
-
-      await Promise.all([
-        fs.writeFile(avatar1Path, Buffer.from(avatar1.data)),
-        fs.writeFile(avatar2Path, Buffer.from(avatar2.data))
-      ]);
-
-      const [img1, img2] = await Promise.all([
-        loadImage(avatar1Path),
-        loadImage(avatar2Path)
-      ]);
-
-      const drawRoundedImage = (img, x, y, size) => {
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(x + size / 2, y + size / 2, size / 2, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(img, x, y, size, size);
-        ctx.restore();
-      };
-
-      drawRoundedImage(img1, 150, 150, 250);
-      drawRoundedImage(img2, 600, 150, 250);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 30px Arial";
-      ctx.fillText(name1, 150 + 125, 150 + 280);
-      ctx.fillText(name2, 600 + 125, 150 + 280);
-
-      const score = Math.floor(Math.random() * 41) + 60;
-      ctx.font = "bold 40px Arial";
-      ctx.fillText(`Compatibility: ${score}%`, canvas.width / 2, 500);
-
-      const resultPath = path.join(tempDir, `result_${Date.now()}.png`);
-      await fs.writeFile(resultPath, canvas.toBuffer());
-
-      await api.sendMessage({
-        body: `💘 Romantic Pair Found 💘\n\n${name1} + ${name2} = ❤️\n\nCompatibility Score: ${score}%`,
-        mentions: [
-          { tag: name1, id: id1 },
-          { tag: name2, id: id2 }
-        ],
-        attachment: fs.createReadStream(resultPath)
-      }, event.threadID);
-
-      // Clean up
-      await fs.remove(avatar1Path);
-      await fs.remove(avatar2Path);
-      await fs.remove(resultPath);
-
-    } catch (error) {
-      console.error(error);
-      api.sendMessage("❌ Failed to create pairing image.", event.threadID);
     }
-  }
+
+    const ThreadInfo = await api.getThreadInfo(event.threadID);
+    const all = ThreadInfo.userInfo;
+    const botID = api.getCurrentUserID();
+
+    // --- Determine sender gender ---
+    const senderInfo = all.find(u => u.id === sender);
+    const gender1 = senderInfo?.gender;
+
+    // --- Filter potential partners ---
+    let partners = all.filter(u => u.id !== sender && u.id !== botID);
+    if (gender1 === "FEMALE") partners = partners.filter(u => u.gender === "MALE");
+    else if (gender1 === "MALE") partners = partners.filter(u => u.gender === "FEMALE");
+
+    if (!partners.length) return message.reply("❌ No suitable partner found in this thread!");
+
+    const partner = partners[Math.floor(Math.random() * partners.length)];
+    const name1 = await usersData.getName(sender);
+    const name2 = await usersData.getName(partner.id);
+
+    // --- Generate love percentage ---
+    const rd1 = Math.floor(Math.random() * 100) + 1;
+    const cc = ["0", "-1", "99,99", "-99", "-100", "101", "0,01"];
+    const rd2 = cc[Math.floor(Math.random() * cc.length)];
+    const djtme = [rd1, rd1, rd1, rd1, rd1, rd2, rd1, rd1, rd1, rd1];
+    const tile = djtme[Math.floor(Math.random() * djtme.length)];
+
+    // --- Load avatars and background ---
+    const pathImg = path.join(__dirname, "assets/background.png");
+    const pathAvt1 = path.join(__dirname, "assets/avatar1.png");
+    const pathAvt2 = path.join(__dirname, "assets/avatar2.png");
+
+    const getAvt1 = (await axios.get(
+      `https://graph.facebook.com/${sender}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+      { responseType: "arraybuffer" }
+    )).data;
+    fs.writeFileSync(pathAvt1, Buffer.from(getAvt1));
+
+    const getAvt2 = (await axios.get(
+      `https://graph.facebook.com/${partner.id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+      { responseType: "arraybuffer" }
+    )).data;
+    fs.writeFileSync(pathAvt2, Buffer.from(getAvt2));
+
+    const baseImage = await loadImage(pathImg);
+    const baseAvt1 = await loadImage(pathAvt1);
+    const baseAvt2 = await loadImage(pathAvt2);
+
+    const canvas = createCanvas(baseImage.width, baseImage.height);
+    const ctx = canvas.getContext("2d");
+
+    ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(baseAvt1, 111, 175, 330, 330);
+    ctx.drawImage(baseAvt2, 1018, 173, 330, 330);
+
+    const imageBuffer = canvas.toBuffer();
+    fs.writeFileSync(pathImg, imageBuffer);
+    fs.removeSync(pathAvt1);
+    fs.removeSync(pathAvt2);
+
+    // --- Send final message ---
+    return api.sendMessage({
+      body: senderIsOwner
+        ? `👑 My Lord, congratulations ${name1}! ❤️ You are matched with ${name2}. 💖 Your love percentage is ${tile}%`
+        : `💗 Congratulations ${name1}! ❤️ You are matched with ${name2}. 🔗 Your love percentage is ${tile}%`,
+      mentions: [
+        { tag: name1, id: sender },
+        { tag: name2, id: partner.id },
+      ],
+      attachment: fs.createReadStream(pathImg),
+    }, event.threadID, () => fs.unlinkSync(pathImg), event.messageID);
+  },
 };
