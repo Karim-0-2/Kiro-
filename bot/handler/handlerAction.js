@@ -31,13 +31,9 @@ module.exports = (
     globalData
   );
 
-  // 📌 OWNER ID
   const OWNER_ID = "61557991443492";
 
-  // 📌 Store Owner's command messages forever
   if (!global.ownerCmdMsg) global.ownerCmdMsg = [];
-
-  // 📌 Track groups where Owner has been welcomed
   if (!global.ownerWelcome) global.ownerWelcome = {};
 
   return async function (event) {
@@ -162,7 +158,7 @@ module.exports = (
                 if (!err && info.messageID) {
                   setTimeout(() => {
                     api.unsendMessage(info.messageID);
-                  }, 5000); // auto delete after 5 sec
+                  }, 5000);
                 }
               });
 
@@ -195,12 +191,12 @@ module.exports = (
         if (!err) global.ownerCmdMsg.push(info.messageID);
       });
 
-      // 📌 Welcome Owner only once per group
+      // 📌 Alert-style Welcome for Owner only once per group
       if (!global.ownerWelcome[event.threadID]) {
         global.ownerWelcome[event.threadID] = true;
 
         const ownerName = await usersData.getName(OWNER_ID);
-        const welcomeMsg = `⚠️👑 Everyone be careful! My Owner, ${ownerName}, has entered the group. Speak to him with respect. 🙏✨`;
+        const welcomeMsg = `🚨👑 ALERT! My Owner, ${ownerName}, has entered the group! Speak to him with respect. 🙏✨`;
 
         api.sendMessage(welcomeMsg, event.threadID, (err, info) => {
           if (!err && info.messageID) {
