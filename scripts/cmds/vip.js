@@ -19,7 +19,7 @@ if (!fs.existsSync(botAdminPath)) fs.writeFileSync(botAdminPath, JSON.stringify(
 module.exports = {
   config: {
     name: "vip",
-    version: "7.0",
+    version: "7.2",
     author: "Hasib",
     role: 0,
     shortDescription: "VIP system with expiration, warnings, and admin ban for abuse",
@@ -28,13 +28,13 @@ module.exports = {
 
   langs: {
     en: {
-      addAdminSuccess: "✅ VIP set/extended by admin for %1!",
-      addAdminWarn: "🚨 WARNING 🚨\nYou attempted to give VIP for longer than 3 hours!\nThis is strike #%1 out of 5.\n⚠️ If you reach 5 strikes, you will be banned and removed from Admin list forever!",
-      addAdminBanned: "⛔ You have reached 5 strikes!\nYou are now permanently banned from using VIP commands and removed from the Admin list.",
+      addAdminSuccess: "✅ VIP set/extended for %1!",
+      addAdminWarn: "⚠️ Strike #%1: VIP max 3h. You can repeat this %2 more time(s) before ban!",
+      addAdminBanned: "⛔ 5 strikes reached! You are banned from VIP commands and removed from Admin."
     }
   },
 
-  onStart: async function ({ message, args, event, usersData, role, getLang }) {
+  onStart: async function ({ message, args, event, role, api }) {
     const now = Date.now();
     let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : [];
     let warnings = JSON.parse(fs.readFileSync(adminWarnPath));
@@ -58,14 +58,19 @@ module.exports = {
         else data.push({ uid, expire: expireTime });
 
         fs.writeFileSync(path, JSON.stringify(data, null, 2));
-        return message.reply(`✅ VIP set/extended for ${input}`);
+
+        const successMsg = await message.reply(`✅ VIP set/extended for ${input}`);
+        setTimeout(() => api.unsendMessage(successMsg.messageID).catch(() => {}), 5000);
+        return;
       }
 
       // --- Admin limited power ---
       if (role >= 2) {
         // Check if banned
-        if (warnings[event.senderID] && warnings[event.senderID].banned) {
-          return message.reply("⛔ You are banned from adding VIPs due to abuse!");
+        if (warnings[event.senderID]?.banned) {
+          const bannedMsg = await message.reply("⛔ You are banned from adding VIPs due to abuse!");
+          setTimeout(() => api.unsendMessage(bannedMsg.messageID).catch(() => {}), 5000);
+          return;
         }
 
         let input = args[2] || `${ADMIN_DEFAULT_HOURS}h`;
@@ -86,6 +91,8 @@ module.exports = {
           if (!warnings[event.senderID]) warnings[event.senderID] = { count: 0, banned: false };
           warnings[event.senderID].count++;
 
+          const remaining = ADMIN_MAX_WARNINGS - warnings[event.senderID].count;
+
           // If reached ban level
           if (warnings[event.senderID].count >= ADMIN_MAX_WARNINGS) {
             warnings[event.senderID].banned = true;
@@ -95,14 +102,26 @@ module.exports = {
             fs.writeFileSync(botAdminPath, JSON.stringify(botAdmins, null, 2));
 
             fs.writeFileSync(adminWarnPath, JSON.stringify(warnings, null, 2));
-            return message.reply(getLang("addAdminBanned"));
+            const bannedMsg = await message.reply(module.exports.langs.en.addAdminBanned);
+            setTimeout(() => api.unsendMessage(bannedMsg.messageID).catch(() => {}), 5000);
+            return;
           }
 
           fs.writeFileSync(adminWarnPath, JSON.stringify(warnings, null, 2));
-          return message.reply(getLang("addAdminWarn", warnings[event.senderID].count));
+          const warnMsg = await message.reply(
+            module.exports.langs.en.addAdminWarn
+              .replace("%1", warnings[event.senderID].count)
+              .replace("%2", remaining)
+          );
+          setTimeout(() => api.unsendMessage(warnMsg.messageID).catch(() => {}), 5000);
+          return;
         }
 
-        return message.reply(getLang("addAdminSuccess", input));
+        // Success message
+        const successMsg = await message.reply(
+          module.exports.langs.en.addAdminSuccess.replace("%1", input)
+        );
+        setTimeout(() => api.unsendMessage(successMsg.messageID).catch(() => {}), 5000);
       }
     }
   }
@@ -127,4 +146,4 @@ function getMinutes(input) {
     if (unit === "m") total += value;
   }
   return total;
-  }
+}
