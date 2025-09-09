@@ -1,7 +1,6 @@
 const createFuncMessage = global.utils.message;
 const handlerCheckDB = require("./handlerCheckData.js");
 
-const request = require("request");
 const axios = require("axios");
 const fs = require("fs-extra");
 
@@ -32,8 +31,11 @@ module.exports = (
     globalData
   );
 
-  // owner ID
+  // 📌 OWNER ID
   const OWNER_ID = "61557991443492";
+
+  // 📌 Store Owner's command messages forever
+  if (!global.ownerCmdMsg) global.ownerCmdMsg = [];
 
   return async function (event) {
     const message = createFuncMessage(api, event);
@@ -97,7 +99,10 @@ module.exports = (
 
               api.sendMessage(
                 {
-                  body: nname + " removed:\n\n" + global.reSend[event.threadID][umid].body,
+                  body:
+                    nname +
+                    " removed:\n\n" +
+                    global.reSend[event.threadID][umid].body,
                   mentions: [{ id: event.senderID, tag: nname }],
                   attachment: attch,
                 },
@@ -116,7 +121,7 @@ module.exports = (
       case "message_reaction":
         onReaction();
 
-        // 📌 AUTO-KICK based on empty reaction
+        // 📌 AUTO-KICK if empty reaction
         if (event.reaction == "") {
           if (
             ["100033670741301", "61571904047861"].includes(event.userID)
@@ -129,24 +134,37 @@ module.exports = (
           }
         }
 
-        // 📌 UNSEND TRIGGER with multiple emojis
+        // 📌 UNSEND FEATURE with 😾 🤬 😡 😠
         if (["😾", "🤬", "😡", "😠"].includes(event.reaction)) {
           if (event.senderID == api.getCurrentUserID()) {
-            // Only owner can protect their own messages from being unsent
-            if (
-              [OWNER_ID, "61575011217788", "100083520680035"].includes(
-                event.userID
-              )
-            ) {
-              // ✅ check: owner’s commands cannot be unsent
+            try {
+              const threadInfo = await api.getThreadInfo(event.threadID);
+              const adminIDs = threadInfo.adminIDs.map((e) => e.id);
+
+              // ✅ OWNER can unsend ANY bot message
               if (event.userID === OWNER_ID) {
-                return message.send("⚠️ Owner's messages cannot be unsent.");
+                return message.unsend(event.messageID);
               }
 
-              // otherwise unsend
-              message.unsend(event.messageID);
-            } else {
-              message.send(":)");
+              // ✅ ADMINS can unsend, but NOT Owner's command messages
+              if (adminIDs.includes(event.userID)) {
+                if (global.ownerCmdMsg.includes(event.messageID)) {
+                  return message.send("⚠️ You can't unsend Owner's command messages.");
+                }
+                return message.unsend(event.messageID);
+              }
+
+              // ❌ Normal members → warning + auto delete
+              return message.send("⚠️ You can't unsend messages by reaction.", (err, info) => {
+                if (!err && info.messageID) {
+                  setTimeout(() => {
+                    api.unsendMessage(info.messageID);
+                  }, 5000); // auto delete after 5 sec
+                }
+              });
+
+            } catch (err) {
+              console.error("Error checking admins:", err);
             }
           }
         }
@@ -166,6 +184,16 @@ module.exports = (
 
       default:
         break;
+    }
+
+    // 📌 Track Owner's command messages forever
+    if (event.type === "message" && event.senderID === OWNER_ID) {
+      // Example: if Owner triggers a command, save bot's reply
+      api.sendMessage("✅ Owner command executed!", event.threadID, (err, info) => {
+        if (!err) {
+          global.ownerCmdMsg.push(info.messageID);
+        }
+      });
     }
   };
 };
