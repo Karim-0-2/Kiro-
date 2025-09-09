@@ -1,55 +1,44 @@
 const fs = require("fs");
 const path = __dirname + "/cache/vip.json";
+const adminWarnPath = __dirname + "/cache/adminWarnings.json";
+const botAdminPath = __dirname + "/cache/botAdmins.json";
 
-// Owners (full power)
+// --- Owners (fixed) ---
 const OWNER_UIDS = ["61557991443492", "61578418080601"];
 const DEFAULT_DAYS = 7;
+
+// --- Admin limits ---
+const ADMIN_DEFAULT_HOURS = 1;
+const ADMIN_MAX_HOURS = 3;
+const ADMIN_MAX_WARNINGS = 5; // after 5 → ban
+
+// --- Ensure files exist ---
+if (!fs.existsSync(adminWarnPath)) fs.writeFileSync(adminWarnPath, JSON.stringify({}));
+if (!fs.existsSync(botAdminPath)) fs.writeFileSync(botAdminPath, JSON.stringify([]));
 
 module.exports = {
   config: {
     name: "vip",
-    version: "5.8",
+    version: "7.0",
     author: "Hasib",
     role: 0,
-    shortDescription: "VIP system with expiration, re-add support, and respectful non-VIP reply",
-    category: "admin",
-    guide:
-      "{pn} add [@tag/reply/uid] [time]\n   - Owner: e.g. 5d (5 days), 3h (3 hours)\n   - Admin: always 2h fixed\n" +
-      "{pn} remove [@tag/reply/uid]\n{pn} list\n{pn} [message] (send to all VIPs)\n{pn} reply [@reply]"
+    shortDescription: "VIP system with expiration, warnings, and admin ban for abuse",
+    category: "admin"
   },
 
   langs: {
     en: {
-      noOwner: "⚠️ Only Hasib or his wife can set custom time VIPs.",
-      addOwnerSuccess: "✅ VIP set/extended for %1!",
-      addAdminSuccess: "✅ VIP set/extended by admin for 2 hours only!",
-      alreadyInVIP: "⚠️ User is already a VIP. Time extended!",
-      removeSuccess: "🗑 VIP removed successfully!",
-      notInVIP: "❌ User is not in VIP list.",
-      list: "📜 VIP list:\n%1",
-      missingMessage: "❌ You need to write a message to send to VIPs!",
-      reply: "📍 VIP %1: %2",
-      replyUserSuccess: "✅ Message sent to VIP successfully!",
-      expiredNotice: "⏰ VIP expired for user %1.",
-      notVipReply: "🌷 Dear friend, this feature is for VIPs only ✨.\nIf you would like to become a VIP, please respectfully ask my Owner or Bot Admins 💖."
+      addAdminSuccess: "✅ VIP set/extended by admin for %1!",
+      addAdminWarn: "🚨 WARNING 🚨\nYou attempted to give VIP for longer than 3 hours!\nThis is strike #%1 out of 5.\n⚠️ If you reach 5 strikes, you will be banned and removed from Admin list forever!",
+      addAdminBanned: "⛔ You have reached 5 strikes!\nYou are now permanently banned from using VIP commands and removed from the Admin list.",
     }
   },
 
   onStart: async function ({ message, args, event, usersData, role, getLang }) {
-    if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify([]));
-    let data = JSON.parse(fs.readFileSync(path));
     const now = Date.now();
-
-    // --- Auto-remove expired VIPs ---
-    const expired = data.filter(u => u.expire <= now);
-    if (expired.length > 0) {
-      for (const u of expired) {
-        const name = await usersData.getName(u.uid);
-        message.send(getLang("expiredNotice", name));
-      }
-      data = data.filter(u => u.expire > now);
-      fs.writeFileSync(path, JSON.stringify(data, null, 2));
-    }
+    let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : [];
+    let warnings = JSON.parse(fs.readFileSync(adminWarnPath));
+    let botAdmins = JSON.parse(fs.readFileSync(botAdminPath));
 
     // --- ADD VIP ---
     if (args[0] === "add") {
@@ -60,135 +49,82 @@ module.exports = {
       if (!uid) return message.reply("Provide a UID, reply, or mention.");
       let existing = data.find(u => u.uid === uid);
 
-      // Owner: custom time (days or hours)
+      // --- Owner full power ---
       if (OWNER_UIDS.includes(event.senderID)) {
         let input = args[2] || `${DEFAULT_DAYS}d`;
-        let expireTime = null;
+        let expireTime = parseTime(input, now, DEFAULT_DAYS * 24 * 60);
 
-        if (/^\d+d$/i.test(input)) {
-          const days = parseInt(input);
-          expireTime = now + days * 24 * 60 * 60 * 1000;
-        } else if (/^\d+h$/i.test(input)) {
-          const hours = parseInt(input);
-          expireTime = now + hours * 60 * 60 * 1000;
-        } else {
-          expireTime = now + DEFAULT_DAYS * 24 * 60 * 60 * 1000;
-          input = `${DEFAULT_DAYS}d`;
-        }
-
-        if (existing) {
-          existing.expire = Math.max(existing.expire, now) + (expireTime - now);
-        } else {
-          data.push({ uid, expire: expireTime });
-        }
+        if (existing) existing.expire = Math.max(existing.expire, now) + (expireTime - now);
+        else data.push({ uid, expire: expireTime });
 
         fs.writeFileSync(path, JSON.stringify(data, null, 2));
-        return message.reply(getLang("addOwnerSuccess", input));
+        return message.reply(`✅ VIP set/extended for ${input}`);
       }
 
-      // Admins: fixed 2 hours
+      // --- Admin limited power ---
       if (role >= 2) {
-        if (existing) {
-          existing.expire = Math.max(existing.expire, now) + 2 * 60 * 60 * 1000;
-        } else {
-          data.push({ uid, expire: now + 2 * 60 * 60 * 1000 });
+        // Check if banned
+        if (warnings[event.senderID] && warnings[event.senderID].banned) {
+          return message.reply("⛔ You are banned from adding VIPs due to abuse!");
         }
+
+        let input = args[2] || `${ADMIN_DEFAULT_HOURS}h`;
+        let minutesRequested = getMinutes(input);
+        if (minutesRequested <= 0) minutesRequested = ADMIN_DEFAULT_HOURS * 60;
+
+        let minutesLimit = ADMIN_MAX_HOURS * 60;
+        let expireMinutes = Math.min(minutesRequested, minutesLimit);
+        let expireTime = now + expireMinutes * 60 * 1000;
+
+        if (existing) existing.expire = Math.max(existing.expire, now) + (expireTime - now);
+        else data.push({ uid, expire: expireTime });
+
         fs.writeFileSync(path, JSON.stringify(data, null, 2));
-        return message.reply(getLang("addAdminSuccess"));
-      }
 
-      return message.reply(getLang("noOwner"));
-    }
+        // If tried to cross limit
+        if (minutesRequested > minutesLimit) {
+          if (!warnings[event.senderID]) warnings[event.senderID] = { count: 0, banned: false };
+          warnings[event.senderID].count++;
 
-    // --- REMOVE VIP (Owner & Admin both) ---
-    if (args[0] === "remove") {
-      if (role < 2 && !OWNER_UIDS.includes(event.senderID))
-        return message.reply("⚠️ Only admins or owners can remove VIPs.");
-      const uid =
-        event.messageReply?.senderID ||
-        event.mentions?.[Object.keys(event.mentions || {})[0]] ||
-        args[1];
-      if (!uid) return message.reply("Provide a UID, reply, or mention.");
+          // If reached ban level
+          if (warnings[event.senderID].count >= ADMIN_MAX_WARNINGS) {
+            warnings[event.senderID].banned = true;
 
-      const index = data.findIndex(u => u.uid === uid);
-      if (index === -1) return message.reply(getLang("notInVIP"));
+            // Remove from admin list
+            botAdmins = botAdmins.filter(a => a !== event.senderID);
+            fs.writeFileSync(botAdminPath, JSON.stringify(botAdmins, null, 2));
 
-      data.splice(index, 1);
-      fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return message.reply(getLang("removeSuccess"));
-    }
+            fs.writeFileSync(adminWarnPath, JSON.stringify(warnings, null, 2));
+            return message.reply(getLang("addAdminBanned"));
+          }
 
-    // --- VIP LIST ---
-    if (args[0] === "list") {
-      if (data.length === 0) return message.reply("📜 VIP list is empty.");
-      const listText = await Promise.all(
-        data.map(async (u, i) => {
-          const name = await usersData.getName(u.uid);
-          const msLeft = u.expire - now;
-          const days = Math.floor(msLeft / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60));
-          let timeLeft = "";
-          if (days > 0) timeLeft += `${days}d `;
-          if (hours > 0) timeLeft += `${hours}h `;
-          if (minutes > 0 && days === 0) timeLeft += `${minutes}m`;
-          if (timeLeft === "") timeLeft = "less than 1m";
+          fs.writeFileSync(adminWarnPath, JSON.stringify(warnings, null, 2));
+          return message.reply(getLang("addAdminWarn", warnings[event.senderID].count));
+        }
 
-          return `${i + 1}. ${name} - ${timeLeft} left`;
-        })
-      );
-      return message.reply(getLang("list", listText.join("\n")));
-    }
-
-    // --- REPLY TO VIP MESSAGE ---
-    if (args[0] === "reply") {
-      if (!event.messageReply)
-        return message.reply("Reply to a VIP message to respond!");
-      if (!data.find(u => u.uid === event.senderID)) {
-        return message.reply(getLang("notVipReply"));
-      }
-      const uid = event.messageReply.senderID;
-      await message.send({
-        body: getLang(
-          "reply",
-          await usersData.getName(uid),
-          args.slice(1).join(" ")
-        ),
-        mentions: [{ id: uid }]
-      });
-      return message.reply(getLang("replyUserSuccess"));
-    }
-
-    // --- BROADCAST TO ALL VIPs ---
-    if (!args[0]) {
-      if (!data.find(u => u.uid === event.senderID)) {
-        return message.reply(getLang("notVipReply"));
-      }
-      return message.reply(getLang("missingMessage"));
-    }
-
-    if (!data.find(u => u.uid === event.senderID)) {
-      return message.reply(getLang("notVipReply"));
-    }
-
-    const msg = args.join(" ");
-    let success = 0,
-      failed = 0;
-    for (const { uid } of data) {
-      try {
-        await message.send(
-          {
-            body: `📣 VIP message from ${await usersData.getName(
-              event.senderID
-            )}:\n\n${msg}`
-          },
-          uid
-        );
-        success++;
-      } catch (e) {
-        failed++;
+        return message.reply(getLang("addAdminSuccess", input));
       }
     }
-    return message.reply(`✅ Sent to ${success} VIP(s), failed: ${failed}`);
   }
 };
+
+// --- Helper functions ---
+function parseTime(input, now, defaultMinutes) {
+  let minutes = getMinutes(input);
+  if (minutes === 0) minutes = defaultMinutes;
+  return now + minutes * 60 * 1000;
+}
+
+function getMinutes(input) {
+  let total = 0;
+  const regex = /(\d+)([dhm])/gi;
+  let match;
+  while ((match = regex.exec(input)) !== null) {
+    const value = parseInt(match[1]);
+    const unit = match[2].toLowerCase();
+    if (unit === "d") total += value * 24 * 60;
+    if (unit === "h") total += value * 60;
+    if (unit === "m") total += value;
+  }
+  return total;
+  }
