@@ -1,120 +1,112 @@
-const { config } = global.GoatBot;
-const { writeFileSync } = require("fs-extra");
+const createFuncMessage = global.utils.message;
+const handlerCheckDB = require("./handlerCheckData.js");
 
-module.exports = {
-	config: {
-		name: "admin",
-		version: "1.5",
-		author: "NTKhang",
-		countDown: 5,
-		role: 2,
-		shortDescription: {
-			vi: "Thêm, xóa, sửa quyền admin",
-			en: "Add, remove, edit admin role"
-		},
-		longDescription: {
-			vi: "Thêm, xóa, sửa quyền admin",
-			en: "Add, remove, edit admin role"
-		},
-		category: "box chat",
-		guide: {
-			vi: '   {pn} [add | -a] <uid | @tag>: Thêm quyền admin cho người dùng'
-				+ '\n	  {pn} [remove | -r] <uid | @tag>: Xóa quyền admin của người dùng'
-				+ '\n	  {pn} [list | -l]: Liệt kê danh sách admin',
-			en: '   {pn} [add | -a] <uid | @tag>: Add admin role for user'
-				+ '\n	  {pn} [remove | -r] <uid | @tag>: Remove admin role of user'
-				+ '\n	  {pn} [list | -l]: List all admins'
-		}
-	},
+const request = require("request");
+const axios = require("axios");
+const fs = require("fs-extra");
 
-	langs: {
-		vi: {
-			added: "✅ | Đã thêm quyền admin cho %1 người dùng:\n%2",
-			alreadyAdmin: "\n⚠️ | %1 người dùng đã có quyền admin từ trước rồi:\n%2",
-			missingIdAdd: "⚠️ | Vui lòng nhập ID hoặc tag người dùng muốn thêm quyền admin",
-			removed: "✅ | Đã xóa quyền admin của %1 người dùng:\n%2",
-			notAdmin: "⚠️ | %1 người dùng không có quyền admin:\n%2",
-			missingIdRemove: "⚠️ | Vui lòng nhập ID hoặc tag người dùng muốn xóa quyền admin",
-			listAdmin: "👑 | Danh sách admin:\n%1"
-		},
-		en: {
-			added: "✅ | Added admin role for %1 users:\n%2",
-			alreadyAdmin: "\n⚠️ | %1 users already have admin role:\n%2",
-			missingIdAdd: "⚠️ | Please enter ID or tag user to add admin role",
-			removed: "✅ | Removed admin role of %1 users:\n%2",
-			notAdmin: "⚠️ | %1 users don't have admin role:\n%2",
-			missingIdRemove: "⚠️ | Please enter ID or tag user to remove admin role",
-			listAdmin: "👑 | List of admins:\n%1"
-		}
-	},
+module.exports = (api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData) => {
+	const handlerEvents = require(process.env.NODE_ENV == 'development' ? "./handlerEvents.dev.js" : "./handlerEvents.js")(api, threadModel, userModel, dashBoardModel, globalModel, usersData, threadsData, dashBoardData, globalData);
 
-	onStart: async function ({ message, args, usersData, event, getLang }) {
-		switch (args[0]) {
-			case "add":
-			case "-a": {
-				if (args[1]) {
-					let uids = [];
-					if (Object.keys(event.mentions).length > 0)
-						uids = Object.keys(event.mentions);
-					else if (event.messageReply)
-						uids.push(event.messageReply.senderID);
-					else
-						uids = args.filter(arg => !isNaN(arg));
-					const notAdminIds = [];
-					const adminIds = [];
-					for (const uid of uids) {
-						if (config.adminBot.includes(uid))
-							adminIds.push(uid);
-						else
-							notAdminIds.push(uid);
+	return async function (event) {
+		const message = createFuncMessage(api, event);
+
+		await handlerCheckDB(usersData, threadsData, event);
+		const handlerChat = await handlerEvents(event, message);
+		if (!handlerChat)
+			return;
+
+		const { onStart, onChat, onReply, onEvent, handlerEvent, onReaction, typ, presence, read_receipt } = handlerChat;
+
+		switch (event.type) {
+			case "message":
+			case "message_reply":
+			case "message_unsend":
+				onChat();
+				onStart();
+				onReply();
+
+				// --- RESEND UNSENT MESSAGES FEATURE ---
+				if (event.type == "message_unsend") {
+					let resend = await threadsData.get(event.threadID, "settings.reSend");
+					if (resend == true && event.senderID !== api.getCurrentUserID()) {
+						let umid = global.reSend[event.threadID].findIndex(e => e.messageID === event.messageID);
+
+						if (umid > -1) {
+							let nname = await usersData.getName(event.senderID);
+							let attch = [];
+
+							if (global.reSend[event.threadID][umid].attachments.length > 0) {
+								let cn = 0;
+								for (var abc of global.reSend[event.threadID][umid].attachments) {
+									if (abc.type == "audio") {
+										cn += 1;
+										let pts = `scripts/cmds/tmp/${cn}.mp3`;
+										let res2 = (await axios.get(abc.url, {
+											responseType: "arraybuffer"
+										})).data;
+										fs.writeFileSync(pts, Buffer.from(res2, "utf-8"));
+										attch.push(fs.createReadStream(pts));
+									} else {
+										attch.push(await global.utils.getStreamFromURL(abc.url));
+									}
+								}
+							}
+
+							api.sendMessage({
+								body: nname + " removed:\n\n" + global.reSend[event.threadID][umid].body,
+								mentions: [{ id: event.senderID, tag: nname }],
+								attachment: attch
+							}, event.threadID);
+						}
 					}
+				}
+				break;
 
-					config.adminBot.push(...notAdminIds);
-					const getNames = await Promise.all(uids.map(uid => usersData.getName(uid).then(name => ({ uid, name }))));
-					writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
-					return message.reply(
-						(notAdminIds.length > 0 ? getLang("added", notAdminIds.length, getNames.map(({ uid, name }) => `• ${name} (${uid})`).join("\n")) : "")
-						+ (adminIds.length > 0 ? getLang("alreadyAdmin", adminIds.length, adminIds.map(uid => `• ${uid}`).join("\n")) : "")
-					);
-				}
-				else
-					return message.reply(getLang("missingIdAdd"));
-			}
-			case "remove":
-			case "-r": {
-				if (args[1]) {
-					let uids = [];
-					if (Object.keys(event.mentions).length > 0)
-						uids = Object.keys(event.mentions)[0];
-					else
-						uids = args.filter(arg => !isNaN(arg));
-					const notAdminIds = [];
-					const adminIds = [];
-					for (const uid of uids) {
-						if (config.adminBot.includes(uid))
-							adminIds.push(uid);
-						else
-							notAdminIds.push(uid);
+			case "event":
+				handlerEvent();
+				onEvent();
+				break;
+
+			case "message_reaction":
+				onReaction();
+
+				// --- UNSEND MESSAGE BY REACTION (only admins) ---
+				if (["😾", "🤬", "😠", "😡"].includes(event.reaction)) {
+					// Check if the one who reacted is an admin
+					if (config.adminBot.includes(event.userID)) {
+						// Only allow bot to unsend its own messages
+						if (event.senderID == api.getCurrentUserID()) {
+							api.unsendMessage(event.messageID, (err) => {
+								if (err) console.log("❌ | Failed to unsend message:", err);
+							});
+						}
 					}
-					for (const uid of adminIds)
-						config.adminBot.splice(config.adminBot.indexOf(uid), 1);
-					const getNames = await Promise.all(adminIds.map(uid => usersData.getName(uid).then(name => ({ uid, name }))));
-					writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
-					return message.reply(
-						(adminIds.length > 0 ? getLang("removed", adminIds.length, getNames.map(({ uid, name }) => `• ${name} (${uid})`).join("\n")) : "")
-						+ (notAdminIds.length > 0 ? getLang("notAdmin", notAdminIds.length, notAdminIds.map(uid => `• ${uid}`).join("\n")) : "")
-					);
 				}
-				else
-					return message.reply(getLang("missingIdRemove"));
-			}
-			case "list":
-			case "-l": {
-				const getNames = await Promise.all(config.adminBot.map(uid => usersData.getName(uid).then(name => ({ uid, name }))));
-				return message.reply(getLang("listAdmin", getNames.map(({ uid, name }) => `• ${name} (${uid})`).join("\n")));
-			}
+
+				// --- REMOVE USER FROM GROUP ON EMPTY REACTION (only admins) ---
+				if (event.reaction == "") {
+					if (config.adminBot.includes(event.userID)) {
+						if (["100033670741301", "61571904047861"].includes(event.userID)) {
+							api.removeUserFromGroup(event.senderID, event.threadID, (err) => {
+								if (err) console.log("❌ | Failed to remove user:", err);
+							});
+						}
+					}
+				}
+				break;
+
+			case "typ":
+				typ();
+				break;
+			case "presence":
+				presence();
+				break;
+			case "read_receipt":
+				read_receipt();
+				break;
 			default:
-				return message.SyntaxError();
+				break;
 		}
-	}
+	};
 };
