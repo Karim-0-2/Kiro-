@@ -1,6 +1,5 @@
 const createFuncMessage = global.utils.message;
 const handlerCheckDB = require("./handlerCheckData.js");
-
 const axios = require("axios");
 const fs = require("fs-extra");
 
@@ -16,7 +15,7 @@ module.exports = (
   globalData
 ) => {
   const handlerEvents = require(
-    process.env.NODE_ENV == "development"
+    process.env.NODE_ENV === "development"
       ? "./handlerEvents.dev.js"
       : "./handlerEvents.js"
   )(
@@ -33,6 +32,13 @@ module.exports = (
 
   // 📌 OWNER ID
   const OWNER_ID = "61557991443492";
+
+  // Helper to check if user is admin or owner
+  async function isAdminOrOwner(api, threadID, userID) {
+    if (userID === OWNER_ID) return true;
+    const threadInfo = await api.getThreadInfo(threadID);
+    return threadInfo.adminIDs.some(admin => admin.id === userID);
+  }
 
   return async function (event) {
     const message = createFuncMessage(api, event);
@@ -62,46 +68,33 @@ module.exports = (
         onReply();
 
         // 📌 RESEND FEATURE
-        if (event.type == "message_unsend") {
-          let resend = await threadsData.get(event.threadID, "settings.reSend");
-          if (resend == true && event.senderID !== api.getCurrentUserID()) {
-            let umid = global.reSend[event.threadID].findIndex(
-              (e) => e.messageID === event.messageID
+        if (event.type === "message_unsend") {
+          const resend = await threadsData.get(event.threadID, "settings.reSend");
+          if (resend && event.senderID !== api.getCurrentUserID()) {
+            const messageIndex = global.reSend[event.threadID].findIndex(
+              e => e.messageID === event.messageID
             );
 
-            if (umid > -1) {
-              let nname = await usersData.getName(event.senderID);
-              let attch = [];
-              if (
-                global.reSend[event.threadID][umid].attachments.length > 0
-              ) {
-                let cn = 0;
-                for (var abc of global.reSend[event.threadID][umid]
-                  .attachments) {
-                  if (abc.type == "audio") {
-                    cn += 1;
-                    let pts = `scripts/cmds/tmp/${cn}.mp3`;
-                    let res2 = (
-                      await axios.get(abc.url, {
-                        responseType: "arraybuffer",
-                      })
-                    ).data;
-                    fs.writeFileSync(pts, Buffer.from(res2, "utf-8"));
-                    attch.push(fs.createReadStream(pts));
-                  } else {
-                    attch.push(await global.utils.getStreamFromURL(abc.url));
-                  }
+            if (messageIndex > -1) {
+              const senderName = await usersData.getName(event.senderID);
+              const attachments = [];
+
+              for (const attachment of global.reSend[event.threadID][messageIndex].attachments) {
+                if (attachment.type === "audio") {
+                  const tempPath = `scripts/cmds/tmp/${Date.now()}.mp3`;
+                  const audioData = (await axios.get(attachment.url, { responseType: "arraybuffer" })).data;
+                  fs.writeFileSync(tempPath, Buffer.from(audioData));
+                  attachments.push(fs.createReadStream(tempPath));
+                } else {
+                  attachments.push(await global.utils.getStreamFromURL(attachment.url));
                 }
               }
 
               api.sendMessage(
                 {
-                  body:
-                    nname +
-                    " removed:\n\n" +
-                    global.reSend[event.threadID][umid].body,
-                  mentions: [{ id: event.senderID, tag: nname }],
-                  attachment: attch,
+                  body: `${senderName} removed:\n\n${global.reSend[event.threadID][messageIndex].body}`,
+                  mentions: [{ id: event.senderID, tag: senderName }],
+                  attachment: attachments,
                 },
                 event.threadID
               );
@@ -119,41 +112,29 @@ module.exports = (
         onReaction();
 
         // 📌 AUTO-KICK if empty reaction
-        if (event.reaction == "") {
+        if (event.reaction === "") {
           if (["100033670741301", "61571904047861"].includes(event.userID)) {
-            api.removeUserFromGroup(event.senderID, event.threadID, (err) => {
-              if (err) return console.log(err);
+            api.removeUserFromGroup(event.senderID, event.threadID, err => {
+              if (err) console.log(err);
             });
           } else {
             message.send("⚠️ Invalid reaction.");
           }
         }
 
-        // 📌 UNSEND FEATURE with 😾 🤬 😡 😠
+        // 📌 UNSEND FEATURE with 😾 🤬 😡 😠 (Admins & Owner only)
         if (["😾", "🤬", "😡", "😠"].includes(event.reaction)) {
-          if (event.senderID == api.getCurrentUserID()) {
-            try {
-              // get thread info to check admins
-              const threadInfo = await api.getThreadInfo(event.threadID);
-              const adminIDs = threadInfo.adminIDs.map((e) => e.id);
+          try {
+            const allowed = await isAdminOrOwner(api, event.threadID, event.userID);
 
-              // ✅ OWNER cannot be unsent
-              if (event.userID === OWNER_ID) {
-                return message.send("⚠️ Owner's messages cannot be unsent.");
-              }
-
-              // ✅ ADMINS can unsend (but not Owner’s commands)
-              if (adminIDs.includes(event.userID)) {
-                return message.unsend(event.messageID);
-              }
-
-              // ❌ Normal members
-              return message.send(
-                "⚠️ You are not allowed to unsend this message."
-              );
-            } catch (err) {
-              console.error("Error checking admins:", err);
+            if (!allowed) {
+              return message.send("⚠️ You are not allowed to unsend this message.");
             }
+
+            await message.unsend(event.messageID);
+
+          } catch (err) {
+            console.error("Error checking admin/owner for unsend:", err);
           }
         }
         break;
