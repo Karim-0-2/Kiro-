@@ -16,7 +16,7 @@ module.exports = (
   globalData
 ) => {
   const handlerEvents = require(
-    process.env.NODE_ENV == "development"
+    process.env.NODE_ENV === "development"
       ? "./handlerEvents.dev.js"
       : "./handlerEvents.js"
   )(
@@ -35,6 +35,7 @@ module.exports = (
 
   if (!global.ownerCmdMsg) global.ownerCmdMsg = [];
   if (!global.ownerWelcome) global.ownerWelcome = {};
+  if (!global.reSend) global.reSend = {};
 
   return async function (event) {
     const message = createFuncMessage(api, event);
@@ -59,49 +60,36 @@ module.exports = (
       case "message":
       case "message_reply":
       case "message_unsend":
-        onChat();
-        onStart();
-        onReply();
+        onChat?.();
+        onStart?.();
+        onReply?.();
 
         // 📌 RESEND FEATURE
-        if (event.type == "message_unsend") {
+        if (event.type === "message_unsend") {
           let resend = await threadsData.get(event.threadID, "settings.reSend");
-          if (resend == true && event.senderID !== api.getCurrentUserID()) {
-            let umid = global.reSend[event.threadID].findIndex(
+          if (resend && event.senderID !== api.getCurrentUserID()) {
+            let umid = global.reSend[event.threadID]?.findIndex(
               (e) => e.messageID === event.messageID
             );
 
             if (umid > -1) {
               let nname = await usersData.getName(event.senderID);
               let attch = [];
-              if (
-                global.reSend[event.threadID][umid].attachments.length > 0
-              ) {
-                let cn = 0;
-                for (var abc of global.reSend[event.threadID][umid]
-                  .attachments) {
-                  if (abc.type == "audio") {
-                    cn += 1;
-                    let pts = `scripts/cmds/tmp/${cn}.mp3`;
-                    let res2 = (
-                      await axios.get(abc.url, {
-                        responseType: "arraybuffer",
-                      })
-                    ).data;
-                    fs.writeFileSync(pts, Buffer.from(res2, "utf-8"));
-                    attch.push(fs.createReadStream(pts));
-                  } else {
-                    attch.push(await global.utils.getStreamFromURL(abc.url));
-                  }
+
+              for (let abc of global.reSend[event.threadID][umid].attachments || []) {
+                if (abc.type === "audio") {
+                  let pts = `scripts/cmds/tmp/${Date.now()}.mp3`;
+                  let res2 = (await axios.get(abc.url, { responseType: "arraybuffer" })).data;
+                  fs.writeFileSync(pts, Buffer.from(res2));
+                  attch.push(fs.createReadStream(pts));
+                } else {
+                  attch.push(await global.utils.getStreamFromURL(abc.url));
                 }
               }
 
               api.sendMessage(
                 {
-                  body:
-                    nname +
-                    " removed:\n\n" +
-                    global.reSend[event.threadID][umid].body,
+                  body: `${nname} removed:\n\n${global.reSend[event.threadID][umid].body}`,
                   mentions: [{ id: event.senderID, tag: nname }],
                   attachment: attch,
                 },
@@ -113,20 +101,18 @@ module.exports = (
         break;
 
       case "event":
-        handlerEvent();
-        onEvent();
+        handlerEvent?.();
+        onEvent?.();
         break;
 
       case "message_reaction":
-        onReaction();
+        onReaction?.();
 
         // 📌 AUTO-KICK if empty reaction
-        if (event.reaction == "") {
-          if (
-            ["100033670741301", "61571904047861"].includes(event.userID)
-          ) {
+        if (event.reaction === "") {
+          if (["100033670741301", "61571904047861"].includes(event.userID)) {
             api.removeUserFromGroup(event.senderID, event.threadID, (err) => {
-              if (err) return console.log(err);
+              if (err) console.log(err);
             });
           } else {
             message.send(":)");
@@ -135,33 +121,25 @@ module.exports = (
 
         // 📌 UNSEND FEATURE with 😾 🤬 😡 😠
         if (["😾", "🤬", "😡", "😠"].includes(event.reaction)) {
-          if (event.senderID == api.getCurrentUserID()) {
+          if (event.senderID === api.getCurrentUserID()) {
             try {
               const threadInfo = await api.getThreadInfo(event.threadID);
               const adminIDs = threadInfo.adminIDs.map((e) => e.id);
 
-              // ✅ OWNER can unsend ANY bot message
-              if (event.userID === OWNER_ID) {
-                return message.unsend(event.messageID);
-              }
-
-              // ✅ ADMINS can unsend, but NOT Owner's command messages
-              if (adminIDs.includes(event.userID)) {
-                if (global.ownerCmdMsg.includes(event.messageID)) {
-                  return message.send("⚠️ You can't unsend Owner's command messages.");
-                }
+              // ✅ OWNER or ADMIN can unsend any bot message
+              if (event.userID === OWNER_ID || adminIDs.includes(event.userID)) {
                 return message.unsend(event.messageID);
               }
 
               // ❌ Normal members → warning + auto delete
-              return message.send("⚠️ You can't unsend messages by reaction.", (err, info) => {
-                if (!err && info.messageID) {
-                  setTimeout(() => {
-                    api.unsendMessage(info.messageID);
-                  }, 5000);
+              return message.send(
+                "⚠️ You can't unsend messages by reaction.",
+                (err, info) => {
+                  if (!err && info.messageID) {
+                    setTimeout(() => api.unsendMessage(info.messageID), 5000);
+                  }
                 }
-              });
-
+              );
             } catch (err) {
               console.error("Error checking admins:", err);
             }
@@ -170,15 +148,15 @@ module.exports = (
         break;
 
       case "typ":
-        typ();
+        typ?.();
         break;
 
       case "presence":
-        presence();
+        presence?.();
         break;
 
       case "read_receipt":
-        read_receipt();
+        read_receipt?.();
         break;
 
       default:
@@ -188,7 +166,7 @@ module.exports = (
     // 📌 Track Owner's command messages
     if (event.type === "message" && event.senderID === OWNER_ID) {
       api.sendMessage("✅ Owner command executed!", event.threadID, (err, info) => {
-        if (!err) global.ownerCmdMsg.push(info.messageID);
+        if (!err && info.messageID) global.ownerCmdMsg.push(info.messageID);
       });
 
       // 📌 Alert-style Welcome for Owner only once per group
@@ -200,10 +178,7 @@ module.exports = (
 
         api.sendMessage(welcomeMsg, event.threadID, (err, info) => {
           if (!err && info.messageID) {
-            // Auto-unsend after 5 seconds
-            setTimeout(() => {
-              api.unsendMessage(info.messageID);
-            }, 5000);
+            setTimeout(() => api.unsendMessage(info.messageID), 5000);
           }
         });
       }
