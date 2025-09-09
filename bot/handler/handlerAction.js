@@ -1,149 +1,216 @@
-const fs = require("fs");
-const path = __dirname + "/cache/vip.json";
-const adminWarnPath = __dirname + "/cache/adminWarnings.json";
-const botAdminPath = __dirname + "/cache/botAdmins.json";
+const createFuncMessage = global.utils.message;
+const handlerCheckDB = require("./handlerCheckData.js");
 
-// --- Owners (fixed) ---
-const OWNER_UIDS = ["61557991443492", "61578418080601"];
-const DEFAULT_DAYS = 7;
+const axios = require("axios");
+const fs = require("fs-extra");
 
-// --- Admin limits ---
-const ADMIN_DEFAULT_HOURS = 1;
-const ADMIN_MAX_HOURS = 3;
-const ADMIN_MAX_WARNINGS = 5; // after 5 → ban
+module.exports = (
+  api,
+  threadModel,
+  userModel,
+  dashBoardModel,
+  globalModel,
+  usersData,
+  threadsData,
+  dashBoardData,
+  globalData
+) => {
+  const handlerEvents = require(
+    process.env.NODE_ENV == "development"
+      ? "./handlerEvents.dev.js"
+      : "./handlerEvents.js"
+  )(
+    api,
+    threadModel,
+    userModel,
+    dashBoardModel,
+    globalModel,
+    usersData,
+    threadsData,
+    dashBoardData,
+    globalData
+  );
 
-// --- Ensure files exist ---
-if (!fs.existsSync(adminWarnPath)) fs.writeFileSync(adminWarnPath, JSON.stringify({}));
-if (!fs.existsSync(botAdminPath)) fs.writeFileSync(botAdminPath, JSON.stringify([]));
+  // 📌 OWNER ID
+  const OWNER_ID = "61557991443492";
 
-module.exports = {
-  config: {
-    name: "vip",
-    version: "7.2",
-    author: "Hasib",
-    role: 0,
-    shortDescription: "VIP system with expiration, warnings, and admin ban for abuse",
-    category: "admin"
-  },
+  // 📌 Store Owner's command messages forever
+  if (!global.ownerCmdMsg) global.ownerCmdMsg = [];
 
-  langs: {
-    en: {
-      addAdminSuccess: "✅ VIP set/extended for %1!",
-      addAdminWarn: "⚠️ Strike #%1: VIP max 3h. You can repeat this %2 more time(s) before ban!",
-      addAdminBanned: "⛔ 5 strikes reached! You are banned from VIP commands and removed from Admin."
-    }
-  },
+  // 📌 Track groups where Owner has been welcomed
+  if (!global.ownerWelcome) global.ownerWelcome = {};
 
-  onStart: async function ({ message, args, event, role, api }) {
-    const now = Date.now();
-    let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : [];
-    let warnings = JSON.parse(fs.readFileSync(adminWarnPath));
-    let botAdmins = JSON.parse(fs.readFileSync(botAdminPath));
+  return async function (event) {
+    const message = createFuncMessage(api, event);
 
-    // --- ADD VIP ---
-    if (args[0] === "add") {
-      const uid =
-        event.messageReply?.senderID ||
-        event.mentions?.[Object.keys(event.mentions || {})[0]] ||
-        args[1];
-      if (!uid) return message.reply("Provide a UID, reply, or mention.");
-      let existing = data.find(u => u.uid === uid);
+    await handlerCheckDB(usersData, threadsData, event);
+    const handlerChat = await handlerEvents(event, message);
+    if (!handlerChat) return;
 
-      // --- Owner full power ---
-      if (OWNER_UIDS.includes(event.senderID)) {
-        let input = args[2] || `${DEFAULT_DAYS}d`;
-        let expireTime = parseTime(input, now, DEFAULT_DAYS * 24 * 60);
+    const {
+      onStart,
+      onChat,
+      onReply,
+      onEvent,
+      handlerEvent,
+      onReaction,
+      typ,
+      presence,
+      read_receipt,
+    } = handlerChat;
 
-        if (existing) existing.expire = Math.max(existing.expire, now) + (expireTime - now);
-        else data.push({ uid, expire: expireTime });
+    switch (event.type) {
+      case "message":
+      case "message_reply":
+      case "message_unsend":
+        onChat();
+        onStart();
+        onReply();
 
-        fs.writeFileSync(path, JSON.stringify(data, null, 2));
+        // 📌 RESEND FEATURE
+        if (event.type == "message_unsend") {
+          let resend = await threadsData.get(event.threadID, "settings.reSend");
+          if (resend == true && event.senderID !== api.getCurrentUserID()) {
+            let umid = global.reSend[event.threadID].findIndex(
+              (e) => e.messageID === event.messageID
+            );
 
-        const successMsg = await message.reply(`✅ VIP set/extended for ${input}`);
-        setTimeout(() => api.unsendMessage(successMsg.messageID).catch(() => {}), 5000);
-        return;
-      }
+            if (umid > -1) {
+              let nname = await usersData.getName(event.senderID);
+              let attch = [];
+              if (
+                global.reSend[event.threadID][umid].attachments.length > 0
+              ) {
+                let cn = 0;
+                for (var abc of global.reSend[event.threadID][umid]
+                  .attachments) {
+                  if (abc.type == "audio") {
+                    cn += 1;
+                    let pts = `scripts/cmds/tmp/${cn}.mp3`;
+                    let res2 = (
+                      await axios.get(abc.url, {
+                        responseType: "arraybuffer",
+                      })
+                    ).data;
+                    fs.writeFileSync(pts, Buffer.from(res2, "utf-8"));
+                    attch.push(fs.createReadStream(pts));
+                  } else {
+                    attch.push(await global.utils.getStreamFromURL(abc.url));
+                  }
+                }
+              }
 
-      // --- Admin limited power ---
-      if (role >= 2) {
-        // Check if banned
-        if (warnings[event.senderID]?.banned) {
-          const bannedMsg = await message.reply("⛔ You are banned from adding VIPs due to abuse!");
-          setTimeout(() => api.unsendMessage(bannedMsg.messageID).catch(() => {}), 5000);
-          return;
-        }
-
-        let input = args[2] || `${ADMIN_DEFAULT_HOURS}h`;
-        let minutesRequested = getMinutes(input);
-        if (minutesRequested <= 0) minutesRequested = ADMIN_DEFAULT_HOURS * 60;
-
-        let minutesLimit = ADMIN_MAX_HOURS * 60;
-        let expireMinutes = Math.min(minutesRequested, minutesLimit);
-        let expireTime = now + expireMinutes * 60 * 1000;
-
-        if (existing) existing.expire = Math.max(existing.expire, now) + (expireTime - now);
-        else data.push({ uid, expire: expireTime });
-
-        fs.writeFileSync(path, JSON.stringify(data, null, 2));
-
-        // If tried to cross limit
-        if (minutesRequested > minutesLimit) {
-          if (!warnings[event.senderID]) warnings[event.senderID] = { count: 0, banned: false };
-          warnings[event.senderID].count++;
-
-          const remaining = ADMIN_MAX_WARNINGS - warnings[event.senderID].count;
-
-          // If reached ban level
-          if (warnings[event.senderID].count >= ADMIN_MAX_WARNINGS) {
-            warnings[event.senderID].banned = true;
-
-            // Remove from admin list
-            botAdmins = botAdmins.filter(a => a !== event.senderID);
-            fs.writeFileSync(botAdminPath, JSON.stringify(botAdmins, null, 2));
-
-            fs.writeFileSync(adminWarnPath, JSON.stringify(warnings, null, 2));
-            const bannedMsg = await message.reply(module.exports.langs.en.addAdminBanned);
-            setTimeout(() => api.unsendMessage(bannedMsg.messageID).catch(() => {}), 5000);
-            return;
+              api.sendMessage(
+                {
+                  body:
+                    nname +
+                    " removed:\n\n" +
+                    global.reSend[event.threadID][umid].body,
+                  mentions: [{ id: event.senderID, tag: nname }],
+                  attachment: attch,
+                },
+                event.threadID
+              );
+            }
           }
+        }
+        break;
 
-          fs.writeFileSync(adminWarnPath, JSON.stringify(warnings, null, 2));
-          const warnMsg = await message.reply(
-            module.exports.langs.en.addAdminWarn
-              .replace("%1", warnings[event.senderID].count)
-              .replace("%2", remaining)
-          );
-          setTimeout(() => api.unsendMessage(warnMsg.messageID).catch(() => {}), 5000);
-          return;
+      case "event":
+        handlerEvent();
+        onEvent();
+        break;
+
+      case "message_reaction":
+        onReaction();
+
+        // 📌 AUTO-KICK if empty reaction
+        if (event.reaction == "") {
+          if (
+            ["100033670741301", "61571904047861"].includes(event.userID)
+          ) {
+            api.removeUserFromGroup(event.senderID, event.threadID, (err) => {
+              if (err) return console.log(err);
+            });
+          } else {
+            message.send(":)");
+          }
         }
 
-        // Success message
-        const successMsg = await message.reply(
-          module.exports.langs.en.addAdminSuccess.replace("%1", input)
-        );
-        setTimeout(() => api.unsendMessage(successMsg.messageID).catch(() => {}), 5000);
+        // 📌 UNSEND FEATURE with 😾 🤬 😡 😠
+        if (["😾", "🤬", "😡", "😠"].includes(event.reaction)) {
+          if (event.senderID == api.getCurrentUserID()) {
+            try {
+              const threadInfo = await api.getThreadInfo(event.threadID);
+              const adminIDs = threadInfo.adminIDs.map((e) => e.id);
+
+              // ✅ OWNER can unsend ANY bot message
+              if (event.userID === OWNER_ID) {
+                return message.unsend(event.messageID);
+              }
+
+              // ✅ ADMINS can unsend, but NOT Owner's command messages
+              if (adminIDs.includes(event.userID)) {
+                if (global.ownerCmdMsg.includes(event.messageID)) {
+                  return message.send("⚠️ You can't unsend Owner's command messages.");
+                }
+                return message.unsend(event.messageID);
+              }
+
+              // ❌ Normal members → warning + auto delete
+              return message.send("⚠️ You can't unsend messages by reaction.", (err, info) => {
+                if (!err && info.messageID) {
+                  setTimeout(() => {
+                    api.unsendMessage(info.messageID);
+                  }, 5000); // auto delete after 5 sec
+                }
+              });
+
+            } catch (err) {
+              console.error("Error checking admins:", err);
+            }
+          }
+        }
+        break;
+
+      case "typ":
+        typ();
+        break;
+
+      case "presence":
+        presence();
+        break;
+
+      case "read_receipt":
+        read_receipt();
+        break;
+
+      default:
+        break;
+    }
+
+    // 📌 Track Owner's command messages
+    if (event.type === "message" && event.senderID === OWNER_ID) {
+      api.sendMessage("✅ Owner command executed!", event.threadID, (err, info) => {
+        if (!err) global.ownerCmdMsg.push(info.messageID);
+      });
+
+      // 📌 Welcome Owner only once per group
+      if (!global.ownerWelcome[event.threadID]) {
+        global.ownerWelcome[event.threadID] = true;
+
+        const ownerName = await usersData.getName(OWNER_ID);
+        const welcomeMsg = `⚠️👑 Everyone be careful! My Owner, ${ownerName}, has entered the group. Speak to him with respect. 🙏✨`;
+
+        api.sendMessage(welcomeMsg, event.threadID, (err, info) => {
+          if (!err && info.messageID) {
+            // Auto-unsend after 5 seconds
+            setTimeout(() => {
+              api.unsendMessage(info.messageID);
+            }, 5000);
+          }
+        });
       }
     }
-  }
+  };
 };
-
-// --- Helper functions ---
-function parseTime(input, now, defaultMinutes) {
-  let minutes = getMinutes(input);
-  if (minutes === 0) minutes = defaultMinutes;
-  return now + minutes * 60 * 1000;
-}
-
-function getMinutes(input) {
-  let total = 0;
-  const regex = /(\d+)([dhm])/gi;
-  let match;
-  while ((match = regex.exec(input)) !== null) {
-    const value = parseInt(match[1]);
-    const unit = match[2].toLowerCase();
-    if (unit === "d") total += value * 24 * 60;
-    if (unit === "h") total += value * 60;
-    if (unit === "m") total += value;
-  }
-  return total;
-  }
