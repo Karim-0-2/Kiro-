@@ -9,7 +9,7 @@ const ADMINS = ["100060606189407", "61576296543095", "61554678316179", "10009152
 
 module.exports = {
   config: {
-    name: "love",
+    name: "lovev",
     role: 0,
     author: "Romim",
     countDown: 5,
