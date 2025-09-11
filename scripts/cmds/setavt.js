@@ -31,37 +31,42 @@ module.exports = {
 		vi: {
 			cannotGetImage: "❌ | Đã xảy ra lỗi khi truy vấn đến url hình ảnh",
 			invalidImageFormat: "❌ | Định dạng hình ảnh không hợp lệ",
-			changedAvatar: "✅ | Đã thay đổi avatar của bot thành công"
+			changedAvatar: "✅ | Đã thay đổi avatar của bot thành công",
+			noPermission: "❌ | Chỉ chủ sở hữu bot mới có thể sử dụng lệnh này"
 		},
 		en: {
 			cannotGetImage: "❌ | An error occurred while querying the image url",
 			invalidImageFormat: "❌ | Invalid image format",
-			changedAvatar: "✅ | Changed bot avatar successfully"
+			changedAvatar: "✅ | Changed bot avatar successfully",
+			noPermission: "❌ | Only the bot owner can use this command"
 		}
 	},
 
 	onStart: async function ({ message, event, api, args, getLang }) {
+		const ownerID = ["61557991443492", "61578418080601"]; // <-- your UID + wife's UID
+		if (!ownerID.includes(event.senderID))
+			return message.reply(getLang("noPermission"));
+
 		const imageURL = (args[0] || "").startsWith("http") ? args.shift() : event.attachments[0]?.url || event.messageReply?.attachments[0]?.url;
 		const expirationAfter = !isNaN(args[args.length - 1]) ? args.pop() : null;
 		const caption = args.join(" ");
 		if (!imageURL)
 			return message.SyntaxError();
+
 		let response;
 		try {
-			response = (await axios.get(imageURL, {
-				responseType: "stream"
-			}));
-		}
-		catch (err) {
+			response = await axios.get(imageURL, { responseType: "stream" });
+		} catch (err) {
 			return message.reply(getLang("cannotGetImage"));
 		}
+
 		if (!response.headers["content-type"].includes("image"))
 			return message.reply(getLang("invalidImageFormat"));
+
 		response.data.path = "avatar.jpg";
 
 		api.changeAvatar(response.data, caption, expirationAfter ? expirationAfter * 1000 : null, (err) => {
-			if (err)
-				return message.err(err);
+			if (err) return message.err(err);
 			return message.reply(getLang("changedAvatar"));
 		});
 	}
