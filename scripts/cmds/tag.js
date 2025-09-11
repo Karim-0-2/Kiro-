@@ -1,43 +1,55 @@
-const config = {
-        name: "tag",
-        version: "1.6.9",
-        author: "Dipto",
-        credits: "Dipto",
-        countDown: 0,
-        role: 0,
-        hasPermission: 0,
-        description: "Tag user",
-        category: "tag",
-        commandCategory: "tag",
-        guide: "{pn} [reply/mention]",
-        usages: "reply or mention"
-    };
-
-const onStart = async ({ api, args, event }) => {
-       try {
-       const ID = event.messageReply?.senderID || args[0] || event.senderID;
-       const mentionedUser = await api.getUserInfo(ID);
-       if (mentionedUser && mentionedUser[ID]) {
-       const userName = mentionedUser[ID].name;
-       const text = args.join(" ");
-       await api.sendMessage({
-        body: `${userName} ${text}`,
-        mentions: [{
-            tag: userName,
-            id: ID 
-         }]
-       }, event.threadID, event.messageID);
-     } else {
-       api.sendMessage("Reply to a message to tag...", event.threadID, event.messageID);
-       }
-    } catch (error) {
-        console.log(error);
-        api.sendMessage(`Error: ${error.message}`, event.threadID, event.messageID);
-   }
-  };
-
 module.exports = {
-  config, 
-  onStart,
-  run: onStart
+  config: {
+    name: "tag",
+    alises:[],
+    category: '𝗧𝗔𝗚',
+    role: 0,
+    author: 'dipto',
+    countDown: 3,
+    description: { en: '𝗧𝗮𝗴𝘀 𝗮 𝘂𝘀𝗲𝗿 𝘁𝗼 𝘁𝗵𝗲 𝗽𝗿𝗼𝘃𝗶𝗱𝗲𝗱 𝗻𝗮𝗺𝗲 𝗼𝗿 𝗺𝗲𝘀𝘀𝗮𝗴𝗲 𝗿𝗲𝗽𝗹𝘆.' },
+    guide: {
+      en: `1. Reply to a message\n2. Use {pm}tag [name]\n3. Use {pm}tag [name] [message] `
+    },
+  },
+  onStart: async ({ api, event, usersData, threadsData, args }) => {
+    const { threadID, messageID, messageReply } = event;
+    try {
+      const d = await threadsData.get(threadID);
+      const dd = d.members.map(gud => gud.name);
+      const pp = d.members.map(gud => gud.userID);
+      const combined = dd.map((name, index) => ({
+        Name: name,
+        UserId: pp[index]
+      }));
+      let namesToTag = [];
+      let extraMessage = args.join(' ');
+      let m = messageID;
+      if (messageReply) {
+        m = messageReply.messageID;
+        const uid = messageReply.senderID;
+        const name = await usersData.getName(uid);
+        namesToTag.push({ Name: name, UserId: uid });
+      } else {
+        extraMessage = args.slice(1).join(' ');
+        const namesToCheck = args.length > 0 ? [args[0]] : ['dip'];
+        namesToTag = combined.filter(member =>
+          namesToCheck.some(name => member.Name.toLowerCase().includes(name.toLowerCase())));
+        if (namesToTag.length === 0) {
+          return api.sendMessage('not found', threadID, messageID);
+        }
+      }
+      const mentions = namesToTag.map(({ Name, UserId }) => ({
+        tag: Name,
+        id: UserId
+      }));
+      const body = namesToTag.map(({ Name }) => Name).join(', ');
+      const finalBody = extraMessage ? `${body} - ${extraMessage}` : body;
+      api.sendMessage({
+          body: finalBody,
+          mentions
+        },threadID,m);
+    } catch (e) {
+      api.sendMessage(e.message, threadID, messageID);
+    }
+  }
 };
