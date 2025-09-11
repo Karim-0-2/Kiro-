@@ -1,4 +1,29 @@
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+
+// === VIP CONFIG ===
+const vipPath = path.join(__dirname, "/cache/vip.json");
+const OWNERS = ["61557991443492", "61578418080601"]; // Hasib + Wife
+const BOT_ADMINS = []; // Dynamic admins
+
+function loadVIP() {
+  if (!fs.existsSync(vipPath)) return { vips: {}, admins: [] };
+  return JSON.parse(fs.readFileSync(vipPath, "utf8"));
+}
+
+function isAllowed(uid) {
+  const data = loadVIP();
+  const now = Date.now();
+
+  if (OWNERS.includes(uid)) return true; // Owners bypass everything
+  if (BOT_ADMINS.includes(uid)) {
+    // Admins must have VIP
+    return data.vips[uid] && data.vips[uid].expire > now;
+  }
+  // Other users need VIP
+  return data.vips[uid] && data.vips[uid].expire > now;
+}
 
 module.exports = {
   config: {
@@ -13,9 +38,11 @@ module.exports = {
     }
   },
 
-  onStart: async function ({ message, api, args, event, isOwner, isVIP }) {
-    // Owner bypass VIP
-    if (!isOwner && !isVIP) {
+  onStart: async function ({ message, api, args, event }) {
+    const senderID = event.senderID;
+
+    // VIP / Owner check
+    if (!isAllowed(senderID)) {
       return message.reply("❌ This command is VIP-only.");
     }
 
