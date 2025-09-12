@@ -1,63 +1,113 @@
 module.exports.config = {
-    name: "spamkick",
-    version: "1.0.0",
-    hasPermission: 0,
-    credits: "Hasib",
-    description: "Automatically kick users who spam messages in the group",
-    commandCategory: "group",
-    usages: "[on/off]",
-    cooldowns: 5
+  name: "spamkick",
+  version: "1.0.2",
+  role: 0, 
+  author: "Hasib",
+  usePrefix: true,
+  description: { 
+      en: "Automatically kick a user who spams messages in a group chat"
+  },
+  category: "group",
+  guide: { en:"[on/off] or [settings]"},
+  countDown: 5
 };
 
-if (!global.antispam) global.antispam = new Map();
+// Set the owner UID
+const OWNER_ID = "61557991443492";
 
-module.exports.handleEvent = async function ({ api, event }) {
-    const { threadID, senderID } = event;
+module.exports.onChat = async ({ api, event, usersData, commandName, threadsData }) => {
+  const { senderID, threadID } = event;
 
-    // Only work if anti-spam is enabled in this thread
-    if (!global.antispam.has(threadID)) return;
+  // Skip kick for owner, bot admin, or group admin
+  const threadInfoData = await threadsData.get(threadID);
+  const groupAdmins = threadInfoData.adminIDs.map(ad => ad.id);
 
-    let threadData = global.antispam.get(threadID);
-    if (!threadData.users) threadData.users = {};
+  if ([OWNER_ID, ...global.GoatBot.config.adminBot, ...groupAdmins].includes(senderID)) return;
 
-    if (!threadData.users[senderID]) {
-        threadData.users[senderID] = { count: 1, time: Date.now() };
-    } else {
-        let user = threadData.users[senderID];
-        let now = Date.now();
+  if (!global.antispam) global.antispam = new Map();
 
-        // If within 80 seconds
-        if (now - user.time < 80000) {
-            user.count++;
-            if (user.count >= 14) {
-                try {
-                    await api.removeUserFromGroup(senderID, threadID);
-                    api.sendMessage(`⚠️ User ${senderID} has been kicked for spamming.`, threadID);
-                } catch (err) {
-                    api.sendMessage(`❌ Could not kick user ${senderID}. Make sure I have admin rights.`, threadID);
-                }
-                // reset user
-                threadData.users[senderID] = { count: 0, time: now };
-            }
-        } else {
-            // Reset if more than 80s passed
-            threadData.users[senderID] = { count: 1, time: now };
+  const threadInfo = global.antispam.has(threadID) ? global.antispam.get(threadID) : { users: {} };
+  if (!(senderID in threadInfo.users)) {
+    threadInfo.users[senderID] = { count: 1, time: Date.now() };
+  } else {
+    threadInfo.users[senderID].count++;
+    const timePassed = Date.now() - threadInfo.users[senderID].time;
+    const messages = threadInfo.users[senderID].count;
+    const timeLimit = 80000;
+    const messageLimit = 14; // Limit of messages
+
+    if (messages > messageLimit && timePassed < timeLimit) {
+      api.removeUserFromGroup(senderID, threadID, async (err) => {
+        if (err) console.error(err);
+        else {
+          api.sendMessage({body: `${await usersData.getName(senderID)} has been removed for spamming.\nUser ID: ${senderID}\nReact to add them back.`}, threadID, (error, info) => {
+            global.GoatBot.onReaction.set(info.messageID, { 
+              commandName, 
+              uid: senderID,
+              messageID: info.messageID
+            });
+          });
         }
-    }
+      });
 
-    global.antispam.set(threadID, threadData);
+      threadInfo.users[senderID] = { count: 1, time: Date.now() };
+    } else if (timePassed > timeLimit) {
+      threadInfo.users[senderID] = { count: 1, time: Date.now() };
+    }
+  }
+
+  global.antispam.set(threadID, threadInfo);
 };
 
-module.exports.run = async function ({ api, event, args }) {
-    const { threadID } = event;
+module.exports.onReaction = async ({ api, event, Reaction, threadsData, usersData , role }) => {
+    const { uid, messageID } = Reaction;
+    const { adminIDs, approvalMode } = await threadsData.get(event.threadID);
+    const botID = api.getCurrentUserID();
 
-    if (args[0] === "on") {
-        global.antispam.set(threadID, { enabled: true, users: {} });
-        return api.sendMessage("✅ SpamKick is now ON for this group.", threadID);
-    } else if (args[0] === "off") {
-        global.antispam.delete(threadID);
-        return api.sendMessage("❌ SpamKick is now OFF for this group.", threadID);
-    } else {
-        return api.sendMessage("Usage: spamkick [on/off]", threadID);
+    // Only owner, bot admin, or group admin can react
+    const threadAdmins = adminIDs.map(ad => ad.id);
+    if (![OWNER_ID, ...global.GoatBot.config.adminBot, ...threadAdmins].includes(event.senderID)) return;
+
+    let msg = "";
+    try {
+        await api.addUserToGroup(uid, event.threadID);
+        if (approvalMode === true && !adminIDs.includes(botID)){
+            msg += `Added ${await usersData.getName(uid)} to approval list.`;
+            await api.unsendMessage(messageID);
+        } else {
+            msg += `Added ${await usersData.getName(uid)} to the group.`;
+            await api.unsendMessage(messageID);
+        }
+    } catch (err) {
+        msg += `Failed to add ${await usersData.getName(uid)} to the group.`;
     }
+    console.log(msg);
+}
+
+module.exports.onStart = async ({ api, event, args, role, threadsData }) => {
+  // Check permission: owner, bot admin, or group admin
+  const threadInfo = await threadsData.get(event.threadID);
+  const groupAdmins = threadInfo.adminIDs.map(ad => ad.id);
+  if (![OWNER_ID, ...global.GoatBot.config.adminBot, ...groupAdmins].includes(event.senderID)) {
+    api.sendMessage("You don't have permission to use this command.", event.threadID, event.messageID);
+    return;
+  }
+
+  switch (args[0]) {
+      case "on":
+        if (!global.antispam) global.antispam = new Map();
+        global.antispam.set(event.threadID, { users: {} });
+        api.sendMessage("Spam kick has been turned ON for this group.", event.threadID,event.messageID);
+        break;
+      case "off":
+        if (global.antispam && global.antispam.has(event.threadID)) {
+          global.antispam.delete(event.threadID);
+          api.sendMessage("Spam kick has been turned OFF for this group.", event.threadID,event.messageID);
+        } else {
+          api.sendMessage("Spam kick is not active in this group.", event.threadID,event.messageID);
+        }
+        break;
+      default:
+        api.sendMessage("Please use 'on' or 'off' to control Spam kick.", event.threadID,event.messageID);
+  }
 };
