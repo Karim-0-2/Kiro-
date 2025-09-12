@@ -8,7 +8,7 @@ module.exports = {
     role: 0,
     shortDescription: "Send a random girl photo (OWNER ONLY, HIDDEN)",
     longDescription: "",
-    category: "hidden", // hidden category so it won't appear in help
+    category: "No permission", // hidden category so it won't appear in help
     guide: "{pn}",
     hidden: true // custom flag to hide from help
   },
