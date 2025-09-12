@@ -3,29 +3,6 @@ const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
 
-// === VIP CONFIG ===
-const vipPath = path.join(__dirname, "/cache/vip.json");
-const OWNERS = ["61557991443492", "61578418080601"]; // Hasib + Wife
-const BOT_ADMINS = []; // Dynamic admins
-
-function loadVIP() {
-  if (!fs.existsSync(vipPath)) return { vips: {}, admins: [] };
-  return JSON.parse(fs.readFileSync(vipPath, "utf8"));
-}
-
-function isAllowed(uid) {
-  const data = loadVIP();
-  const now = Date.now();
-
-  if (OWNERS.includes(uid)) return true; // Owners bypass everything
-  if (BOT_ADMINS.includes(uid)) {
-    // Admins must have VIP
-    return data.vips[uid] && data.vips[uid].expire > now;
-  }
-  // Other users need VIP (optional: only VIP users can use)
-  return data.vips[uid] && data.vips[uid].expire > now;
-}
-
 // === COMMAND ===
 module.exports = {
   config: {
@@ -41,21 +18,16 @@ module.exports = {
   onStart: async function ({ api, event, args }) {
     const senderID = event.senderID;
 
-    // VIP / Owner check
-    if (!isAllowed(senderID)) {
-      return api.sendMessage("❌ You need VIP access to use this command.", event.threadID, event.messageID);
-    }
-
-    let tmpDir = __dirname + "/tmp";
+    let tmpDir = path.join(__dirname, "tmp");
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
 
-    let pathImg = tmpDir + "/background.png";
-    let pathAvt1 = tmpDir + "/Avtmot.png";
-    let pathAvt2 = tmpDir + "/Avthai.png";
+    let pathImg = path.join(tmpDir, "background.png");
+    let pathAvt1 = path.join(tmpDir, "Avtmot.png");
+    let pathAvt2 = path.join(tmpDir, "Avthai.png");
 
     let id1 = senderID;
-    let ThreadInfo = await api.getThreadInfo(event.threadID);
-    let all = ThreadInfo.userInfo;
+    const ThreadInfo = await api.getThreadInfo(event.threadID);
+    const all = ThreadInfo.userInfo;
 
     // Get gender of sender
     let gender1;
@@ -93,22 +65,22 @@ module.exports = {
 
     // Fetch avatars and background
     const getImage = async (id, path) => {
-      let res = await axios.get(`https://graph.facebook.com/${id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`, { responseType: "arraybuffer" });
-      fs.writeFileSync(path, Buffer.from(res.data, "utf-8"));
+      const res = await axios.get(`https://graph.facebook.com/${id}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`, { responseType: "arraybuffer" });
+      fs.writeFileSync(path, Buffer.from(res.data));
     };
 
     await getImage(id1, pathAvt1);
     await getImage(id2, pathAvt2);
 
     const bgData = await axios.get(rd, { responseType: "arraybuffer" });
-    fs.writeFileSync(pathImg, Buffer.from(bgData.data, "utf-8"));
+    fs.writeFileSync(pathImg, Buffer.from(bgData.data));
 
-    let baseImage = await loadImage(pathImg);
-    let baseAvt1 = await loadImage(pathAvt1);
-    let baseAvt2 = await loadImage(pathAvt2);
+    const baseImage = await loadImage(pathImg);
+    const baseAvt1 = await loadImage(pathAvt1);
+    const baseAvt2 = await loadImage(pathAvt2);
 
-    let canvas = createCanvas(baseImage.width, baseImage.height);
-    let ctx = canvas.getContext("2d");
+    const canvas = createCanvas(baseImage.width, baseImage.height);
+    const ctx = canvas.getContext("2d");
     ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
     ctx.drawImage(baseAvt1, 100, 150, 300, 300);
     ctx.drawImage(baseAvt2, 900, 150, 300, 300);
