@@ -16,7 +16,7 @@ module.exports = {
     role: 0,
     shortDescription: { en: "Edit image by prompt" },
     longDescription: { en: "Edit an uploaded image using a prompt." },
-    category: "image",
+    category: "vip",
     guide: { en: "{p}edit [prompt] (reply to an image)" }
   },
 
