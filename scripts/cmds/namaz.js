@@ -9,8 +9,8 @@ module.exports = {
   config: {
     name: "namaz",
     aliases: ["prayer", "salah"],
-    version: "1.7",
-    author: "MahMUD",
+    version: "1.8",
+    author: "MahMUD", // real author (kept here for credit)
     countDown: 5,
     role: 0,
     category: "Islamic",
@@ -23,7 +23,7 @@ module.exports = {
 
     try {
       const response = await axios.get(apiUrl, {
-        headers: { "author": module.exports.config.author }
+        headers: { "author": "Hasib" } // always show Hasib in API header/output
       });
 
       if (response.data?.error) {
@@ -31,13 +31,13 @@ module.exports = {
       }
 
       if (response.data?.message) {
-        return message.reply(response.data.message);
+        return message.reply(`🕌 Prayer times for ${city}\n👤 Author: Hasib\n\n${response.data.message}`);
       }
 
-      return message.reply(`No prayer times available for ${city}.`);
+      return message.reply(`No prayer times available for ${city}. 👤 Author: Hasib`);
     } catch (error) {
       console.error(error);
-      return message.reply("Error fetching prayer times. Please try again later.");
+      return message.reply("Error fetching prayer times. Please try again later.\n👤 Author: Hasib");
     }
   }
 };
