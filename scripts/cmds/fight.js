@@ -1,87 +1,78 @@
-const TIMEOUT_SECONDS = 120; // Game timeout duration in seconds, change as per need
+const TIMEOUT_SECONDS = 120; // Game timeout duration in seconds
 
-// Initialize a Map to track ongoing fights by threadID
+// Maps to track ongoing fights and game instances
 const ongoingFights = new Map();
-// Initialize a Map to store game instances for each pair
 const gameInstances = new Map();
+
+// Replace with your owner UID
+const OWNER_ID = "61557991443492";
 
 module.exports = {
   config: {
     name: "fight",
-    version: "1.0",
+    version: "2.0",
     author: "Shikaki",
     countDown: 10,
     role: 0,
-    shortDescription: {
-      vi: "",
-      en: "Fight with your friends!",
-    },
-    longDescription: {
-      vi: "",
-      en: "Challenge your friends to a fight and see who wins!",
-    },
+    shortDescription: "Fight with your friends!",
+    longDescription: "Challenge your friends to a fight and see who wins!",
     category: "🎮 Game",
-    guide: "{prefix}fight @mention",
+    guide: "{prefix}fight @mention or reply to a message",
   },
 
-  onStart: async function ({ event, message, usersData, args }) {
+  onStart: async function ({ event, message, usersData }) {
     const threadID = event.threadID;
 
-    // Check if there's already an ongoing fight in this thread
+    // Check if a fight is already ongoing
     if (ongoingFights.has(threadID)) {
       return message.send("⚔️ A fight is already in progress in this group.");
     }
 
-    const mention = Object.keys(event.mentions);
+    let opponentID;
 
-    if (mention.length !== 1) {
-      return message.send("🤔 Please mention one person to start a fight with.");
+    // ✅ Mention support
+    if (event.mentions && Object.keys(event.mentions).length === 1) {
+      opponentID = Object.keys(event.mentions)[0];
+    }
+    // ✅ Reply support
+    else if (event.messageReply) {
+      opponentID = event.messageReply.senderID;
+    } 
+    else {
+      return message.send("🤔 Please mention one person or reply to their message to start a fight.");
     }
 
     const challengerID = event.senderID;
-    const opponentID = mention[0];
+    if (challengerID === opponentID) {
+      return message.send("❌ You cannot fight yourself!");
+    }
 
     const challenger = await usersData.getName(challengerID);
     const opponent = await usersData.getName(opponentID);
 
-    // Create a new fight instance for this pair
+    // Create a new fight instance
     const fight = {
-      participants: [],
-      currentPlayer: null,
-      threadID: threadID,
+      participants: [
+        { id: challengerID, name: challenger, hp: 100 },
+        { id: opponentID, name: opponent, hp: 100 }
+      ],
+      currentPlayer: Math.random() < 0.5 ? challengerID : opponentID,
+      threadID,
       startTime: Date.now(),
     };
 
-    fight.participants.push({
-      id: challengerID,
-      name: challenger,
-      hp: 100,
-    });
-    fight.participants.push({
-      id: opponentID,
-      name: opponent,
-      hp: 100,
-    });
-
-    // Create a new game instance for this pair
+    // Create game instance
     const gameInstance = {
-      fight: fight,
+      fight,
       lastAttack: null,
       lastPlayer: null,
       timeoutID: null,
       turnMessageSent: false,
     };
 
-    // Randomly determine the starting player
-    gameInstance.fight.currentPlayer = Math.random() < 0.5 ? challengerID : opponentID;
-
-    // Add the game instance to the Map
     gameInstances.set(threadID, gameInstance);
 
-    // Start the fight
     startFight(message, fight);
-
-    // Start the timeout for this game
     startTimeout(threadID, message);
   },
 
@@ -93,46 +84,47 @@ module.exports = {
     const currentPlayerID = gameInstance.fight.currentPlayer;
     const currentPlayer = gameInstance.fight.participants.find(p => p.id === currentPlayerID);
 
-    // Normalize attack command for replies
     const attack = (event.body || event.messageReply?.body || "").trim().toLowerCase();
+    if (!attack) return;
 
-    const isCurrentPlayer = event.senderID === currentPlayerID;
-
-    // Opponent trying to play when it's not their turn
-    if (!isCurrentPlayer) {
+    // Only current player can attack
+    if (event.senderID !== currentPlayerID) {
       if (!gameInstance.turnMessageSent) {
-        const turnMessage = `😒 It's ${currentPlayer.name}'s turn.`;
-        message.send(turnMessage);
+        message.send(`😒 It's ${currentPlayer.name}'s turn. Wait for your turn!`);
         gameInstance.turnMessageSent = true;
       }
       return;
     }
 
-    // Handle forfeiting
+    // Forfeit
     if (attack === "forfeit") {
       const forfeiter = currentPlayer.name;
       const opponent = gameInstance.fight.participants.find(p => p.id !== currentPlayerID).name;
       message.send(`🏃 ${forfeiter} forfeits the match! ${opponent} wins!`);
-      endFight(threadID);
-      return;
+      return endFight(threadID);
     }
 
-    // Handle valid attacks
+    // Owner special attack
+    if (attack === "bom" && event.senderID === OWNER_ID) {
+      const opponent = gameInstance.fight.participants.find(p => p.id !== currentPlayerID);
+      message.send(`💥 ${currentPlayer.name} used BOM! ${opponent.name} is instantly defeated! 🎉`);
+      return endFight(threadID);
+    }
+
+    // Normal attacks
     if (["kick", "punch", "slap"].includes(attack)) {
       const damage = Math.random() < 0.1 ? 0 : Math.floor(Math.random() * 20 + 10);
       const opponent = gameInstance.fight.participants.find(p => p.id !== currentPlayerID);
       opponent.hp -= damage;
 
       message.send(
-        `🥊 ${currentPlayer.name} attacks ${opponent.name} with ${attack} and deals ${damage} damage.\n\n` +
-        `Now, ${opponent.name} has ${opponent.hp} HP, and ${currentPlayer.name} has ${currentPlayer.hp} HP.`
+        `🥊 ${currentPlayer.name} attacks ${opponent.name} with ${attack} and deals ${damage} damage.\n` +
+        `HP: ${currentPlayer.name} ${currentPlayer.hp} | ${opponent.name} ${opponent.hp}`
       );
 
-      // Check for winner
       if (opponent.hp <= 0) {
         message.send(`🎉 ${currentPlayer.name} wins! ${opponent.name} is defeated.`);
-        endFight(threadID);
-        return;
+        return endFight(threadID);
       }
 
       // Switch turns
@@ -145,10 +137,10 @@ module.exports = {
       gameInstance.lastPlayer = currentPlayer;
       gameInstance.turnMessageSent = false;
 
-      const newCurrentPlayer = gameInstance.fight.participants.find(p => p.id === gameInstance.fight.currentPlayer);
-      message.send(`🥲 It's ${newCurrentPlayer.name}'s turn now.`);
+      const nextPlayer = gameInstance.fight.participants.find(p => p.id === gameInstance.fight.currentPlayer);
+      message.send(`🥲 It's ${nextPlayer.name}'s turn now.`);
     } else {
-      message.send("❌ Invalid attack! Use 'kick', 'punch', 'slap', or 'forfeit'.");
+      message.send("❌ Invalid attack! Use 'kick', 'punch', 'slap', 'forfeit', or 'bom' (owner only).");
     }
   },
 };
@@ -160,16 +152,14 @@ function startFight(message, fight) {
   const currentPlayer = fight.participants.find(p => p.id === fight.currentPlayer);
   const opponent = fight.participants.find(p => p.id !== fight.currentPlayer);
 
-  const attackList = ["kick", "punch", "slap", "forfeit"];
-
   message.send(
     `${currentPlayer.name} has challenged ${opponent.name} to a duel!\n\n` +
-    `${currentPlayer.name} has ${currentPlayer.hp} HP, and ${opponent.name} has ${opponent.hp} HP.\n\n` +
-    `It's ${currentPlayer.name}'s turn currently.\n\nAvailable attacks: ${attackList.join(', ')}`
+    `HP: ${currentPlayer.name} ${currentPlayer.hp} | ${opponent.name} ${opponent.hp}\n\n` +
+    `It's ${currentPlayer.name}'s turn.\nAvailable attacks: kick, punch, slap, forfeit${OWNER_ID ? ", bom (owner only)" : ""}`
   );
 }
 
-// Start timeout
+// Timeout
 function startTimeout(threadID, message) {
   const timeoutID = setTimeout(() => {
     const gameInstance = gameInstances.get(threadID);
@@ -192,4 +182,4 @@ function endFight(threadID) {
   if (gameInstance?.timeoutID) clearTimeout(gameInstance.timeoutID);
   ongoingFights.delete(threadID);
   gameInstances.delete(threadID);
-}
+  }
