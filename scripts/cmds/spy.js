@@ -2,7 +2,6 @@ const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
 
-const vipPath = path.join(__dirname, "cache", "vip.json");
 const OWNER_UID = "61557991443492"; // Hasib UID
 
 module.exports = {
@@ -19,20 +18,6 @@ module.exports = {
  
   onStart: async function({ event, message, usersData, api, args }) {
     try {
-      // --- VIP check (owner bypass) ---
-      if (event.senderID !== OWNER_UID) {
-        if (!fs.existsSync(vipPath)) fs.writeFileSync(vipPath, JSON.stringify([]));
-        let vipData = [];
-        try {
-          vipData = JSON.parse(fs.readFileSync(vipPath));
-        } catch {
-          vipData = [];
-        }
-        const now = Date.now();
-        const isVIP = vipData.find(u => u.uid === event.senderID && u.expire > now);
-        if (!isVIP) return message.reply("⚠️ This command is **VIP only**.\n⏰ Contact Hasib to get VIP access!");
-      }
-
       const uid1 = event.senderID;
       const uid2 = Object.keys(event.mentions || {})[0];
       let uid;
