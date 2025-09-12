@@ -17,7 +17,7 @@ module.exports = {
     version: "2.1",
     role: 0,
     author: "Hasib",
-    category: "media",
+    category: "vip",
     guide: {
       en: "Use {pn} to get a random cat video. (VIP Only, Owner bypass)"
     }
