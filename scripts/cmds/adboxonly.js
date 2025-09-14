@@ -6,7 +6,7 @@ module.exports = {
     name: "onlyadminbox",
     aliases: ["onlyadbox", "adboxonly", "adminboxonly"],
     version: "1.4",
-    author: "NTKhang + Modified by Hasib",
+    author: "Hasib",
     countDown: 5,
     role: 1,
     description: {
