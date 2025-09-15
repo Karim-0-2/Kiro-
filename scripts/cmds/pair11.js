@@ -21,7 +21,7 @@ function getVipData() {
 
 module.exports = {
   config: {
-    name: "pair5",
+    name: "pair11",
     description: "Find your match in the group chat (VIP only)",
     usage: "pair",
     category: "love",
