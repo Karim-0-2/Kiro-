@@ -16,7 +16,7 @@ function isVip(userID) {
 module.exports = {
   config: {
     name: "pair7",
-    author: "Nyx x Ariyan x Fahad x Saim",
+    author: "Hasib",
     category: "love",
   },
 
