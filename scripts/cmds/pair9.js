@@ -26,7 +26,7 @@ function isAllowed(uid) {
 
 module.exports = {
   config: {
-    name: "pair",
+    name: "pair9",
     aurthor: "BaYjid",
     role: 0,
     shortDescription: "Pair with someone",
