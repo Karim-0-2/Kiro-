@@ -1,51 +1,63 @@
 const DIG = require("discord-image-generation");
 const fs = require("fs-extra");
-const path = __dirname + "/cache/vip.json"; // same vip.json as your vip system
+const vipPath = __dirname + "/cache/vip.json";
 
 module.exports = {
   config: {
     name: "kiss2",
     aliases: ["kiss"],
-    version: "1.1",
-    author: "NIB + Modified by Hasib",
+    version: "2.0",
+    author: "NIB + Modified by FireTix",
     countDown: 5,
     role: 0,
     shortDescription: "KISS (VIP only)",
-    longDescription: "Send a kiss image (only for VIP users)",
+    longDescription: "VIP-only kiss command with reply & mention support",
     category: "funny",
-    guide: "{pn} (by replying to someone's message)"
+    guide: "{pn} @mention or reply to someone"
   },
 
-  onStart: async function ({ api, message, event, usersData }) {
+  onStart: async function ({ api, message, event, args, usersData }) {
     const now = Date.now();
-    let data = [];
-    try {
-      data = JSON.parse(fs.readFileSync(path));
-    } catch (e) {
-      data = [];
+    let vipList = [];
+    if (fs.existsSync(vipPath)) {
+      vipList = JSON.parse(fs.readFileSync(vipPath));
     }
 
-    // --- VIP check ---
-    const vipUser = data.find(u => u.uid === event.senderID && u.expire > now);
-    if (!vipUser) {
-      return message.reply("⛔ This command is only for VIP users. You are not VIP.");
+    // --- Check if sender is VIP ---
+    let isVip = false;
+    const senderVip = vipList.find(u => u.uid === event.senderID && u.expire > now);
+    if (senderVip) isVip = true;
+
+    if (!isVip) {
+      return message.reply("⛔ This command is only for VIP members!");
     }
 
-    // --- Must reply to a message ---
-    if (!event.messageReply) {
-      return message.reply("⚠️ You must reply to someone's message to use this command.");
+    // --- Get target user (mention or reply) ---
+    let one, two;
+    const mention = Object.keys(event.mentions);
+
+    if (mention.length === 0) {
+      if (event.messageReply) {
+        one = event.senderID;
+        two = event.messageReply.senderID;
+      } else {
+        return message.reply("⚠️ Please mention or reply to someone!");
+      }
+    } else if (mention.length === 1) {
+      one = event.senderID;
+      two = mention[0];
+    } else {
+      one = mention[1];
+      two = mention[0];
     }
 
-    const one = event.senderID;
-    const two = event.messageReply.senderID;
-
+    // --- Generate kiss image ---
     try {
       const avatarURL1 = await usersData.getAvatarUrl(one);
       const avatarURL2 = await usersData.getAvatarUrl(two);
-
       const img = await new DIG.Kiss().getImage(avatarURL1, avatarURL2);
-      const pathSave = `${__dirname}/tmp/${one}_${two}_kiss.png`;
 
+      const pathSave = `${__dirname}/tmp/${one}_${two}_kiss.png`;
       fs.writeFileSync(pathSave, Buffer.from(img));
 
       message.reply(
@@ -57,7 +69,7 @@ module.exports = {
       );
     } catch (err) {
       console.error(err);
-      message.reply("❌ Failed to create kiss image. Try again later.");
+      message.reply("❌ Failed to generate kiss image.");
     }
   }
 };
