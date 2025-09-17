@@ -1,99 +1,47 @@
-const axios = require("axios");
 const fs = require("fs-extra");
 const path = require("path");
+const axios = require("axios");
 const jimp = require("jimp");
 
-module.exports = {
-  config: {
-    name: "kiss2",
-    version: "2.1.0",
-    hasPermssion: 0,
-    credits: "𝐂𝐘𝐁𝐄𝐑 ☢️_𖣘 -𝐁𝐎𝐓 ⚠️ 𝑻𝑬𝑨𝑴_ ☢️ | Modified by GoatBot",
-    description: "Kiss someone (by tag or reply)",
-    commandCategory: "Love",
-    usages: "kiss [tag/reply]",
-    cooldowns: 5
-  },
+const CACHE_DIR = path.join(__dirname, "cache");
+const TEMPLATE_IMG = path.join(CACHE_DIR, "kiss2.jpeg");
 
-  onLoad: async () => {
-    const dirMaterial = path.join(__dirname, "cache");
-    const filePath = path.join(dirMaterial, "hon0.jpeg");
-    if (!fs.existsSync(dirMaterial)) fs.mkdirSync(dirMaterial, { recursive: true });
-    if (!fs.existsSync(filePath)) {
-      const img = await axios.get("https://i.imgur.com/j96ooUs.jpeg", { responseType: "arraybuffer" });
-      fs.writeFileSync(filePath, Buffer.from(img.data, "utf-8"));
-    }
-  },
-
-  run: async function ({ event, api, args, Currencies }) {
-    const { threadID, messageID, senderID } = event;
-    const mention = Object.keys(event.mentions);
-    let one = senderID, two;
-
-    // if reply
-    if (event.type === "message_reply") {
-      two = event.messageReply.senderID;
-    }
-    // if mention
-    else if (mention.length > 0) {
-      two = mention[0];
-    }
-
-    if (!two) return api.sendMessage("⚠️ Please tag or reply to 1 person to kiss.", threadID, messageID);
-
-    // random money reward
-    const hc = Math.floor(Math.random() * 101);
-    const rd = Math.floor(Math.random() * 100000) + 100000;
-    await Currencies.increaseMoney(senderID, parseInt(hc * rd));
-
-    // random captions
-    const captions = [
-      "কারণে অকারণে প্রতিদিন নিয়ম করে, তোমার মায়াতে জড়িয়ে পড়ছি আমি বারেবার!🌷",
-      "তোমাকে কেন ভালোবাসি তার কোন বিশেষ কারণ আমার জানা নাই! কিন্তু তোমার কাছে সারাজীবন থেকে যাওয়ার হাজারটা কারণ আমার কাছে আছে!💚",
-      "তোমার সাথে কাটানো সময়গুলোর কথা চিন্তা করলে মনে হয়, এই এক জনম তোমার সাথে অনেক কম সময়!😘",
-      "প্রিয় তুমি কি আমার জীবনের সেই গল্প হবে? যেই গল্পের শুরু থাকবে, কিন্তু কোনো শেষ থাকবে না!♥️",
-      "তুমি পাশে থাকলে সবকিছু সুন্দর মনে হয়, জীবন যেন একটা মধুর কবিতায় রূপ নেয়!😍",
-      "তোমাকে ছাড়া জীবনটা অসম্পূর্ণ, তুমি আমার ভালোবাসার পূর্ণতা!🧡",
-      "তুমি আমার স্বপ্ন, তুমি আমার জীবনের প্রতিটি সুন্দর মুহূর্ত!🌻",
-      "আমার চোখে তোমার অস্থিত্ব খোঁজতে এসোনা, হারিয়ে যাবে! কেননা আমার পুরোটা-জুরেই তোমারই নির্বাক আনাগোনা!🌺",
-      "তোমাতে শুরু তোমাতেই শেষ, তুমি না থাকলে আমাদের গল্প এখানেই শেষ!😘",
-      "ভালোবাসা যদি কোনো অনুভূতি হয়, তাহলে তোমার প্রতি আমার অনুভূতি পৃথিবীর সেরা অনুভূতি।🌻ღ🌺"
-    ];
-    const caption = captions[Math.floor(Math.random() * captions.length)];
-
-    // generate image
-    const imgPath = await makeImage({ one, two });
-    return api.sendMessage({
-      body: caption,
-      attachment: fs.createReadStream(imgPath)
-    }, threadID, () => fs.unlinkSync(imgPath), messageID);
+// On load → download template if not exists
+module.exports.onLoad = async () => {
+  fs.ensureDirSync(CACHE_DIR);
+  if (!fs.existsSync(TEMPLATE_IMG)) {
+    const { data } = await axios.get("https://i.imgur.com/OBB7v7V.jpeg", { responseType: "arraybuffer" }); 
+    fs.writeFileSync(TEMPLATE_IMG, Buffer.from(data));
   }
 };
 
-// helper functions
+async function circle(image) {
+  const img = await jimp.read(image);
+  img.circle();
+  return await img.getBufferAsync("image/png");
+}
+
 async function makeImage({ one, two }) {
-  const __root = path.resolve(__dirname, "cache");
-  const hon_img = await jimp.read(path.join(__root, "hon0.jpeg"));
-  const pathImg = path.join(__root, `hon0_${one}_${two}.jpeg`);
-  const avatarOne = path.join(__root, `avt_${one}.png`);
-  const avatarTwo = path.join(__root, `avt_${two}.png`);
+  const baseImg = await jimp.read(TEMPLATE_IMG);
+  const pathImg = path.join(CACHE_DIR, `kiss2_${one}_${two}.png`);
+  const avatarOne = path.join(CACHE_DIR, `avt2_${one}.png`);
+  const avatarTwo = path.join(CACHE_DIR, `avt2_${two}.png`);
 
-  // download avatars
-  const getAvatarOne = (await axios.get(`https://graph.facebook.com/${one}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`, { responseType: "arraybuffer" })).data;
-  fs.writeFileSync(avatarOne, Buffer.from(getAvatarOne, "utf-8"));
+  const url1 = `https://graph.facebook.com/${one}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`;
+  const url2 = `https://graph.facebook.com/${two}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`;
 
-  const getAvatarTwo = (await axios.get(`https://graph.facebook.com/${two}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`, { responseType: "arraybuffer" })).data;
-  fs.writeFileSync(avatarTwo, Buffer.from(getAvatarTwo, "utf-8"));
+  fs.writeFileSync(avatarOne, Buffer.from((await axios.get(url1, { responseType: "arraybuffer" })).data));
+  fs.writeFileSync(avatarTwo, Buffer.from((await axios.get(url2, { responseType: "arraybuffer" })).data));
 
-  let circleOne = await jimp.read(await circle(avatarOne));
-  let circleTwo = await jimp.read(await circle(avatarTwo));
+  const circleOne = await jimp.read(await circle(avatarOne));
+  const circleTwo = await jimp.read(await circle(avatarTwo));
 
-  hon_img
+  baseImg
     .resize(700, 440)
-    .composite(circleOne.resize(150, 150), 390, 23)
-    .composite(circleTwo.resize(150, 150), 115, 130);
+    .composite(circleOne.resize(160, 160), 350, 30)
+    .composite(circleTwo.resize(160, 160), 120, 160);
 
-  let raw = await hon_img.getBufferAsync("image/png");
+  const raw = await baseImg.getBufferAsync("image/png");
   fs.writeFileSync(pathImg, raw);
 
   fs.unlinkSync(avatarOne);
@@ -102,8 +50,38 @@ async function makeImage({ one, two }) {
   return pathImg;
 }
 
-async function circle(image) {
-  let img = await jimp.read(image);
-  img.circle();
-  return await img.getBufferAsync("image/png");
+module.exports = {
+  config: {
+    name: "kiss2",
+    version: "1.0.0",
+    author: "Hasib",
+    countDown: 5,
+    role: 0,
+    shortDescription: "Kiss someone",
+    longDescription: "Send a kiss image with the person you tag or reply to",
+    category: "love",
+    guide: "{pn} @tag | reply to someone's message"
+  },
+
+  onStart: async function ({ event, api }) {
+    const { threadID, messageID, senderID } = event;
+    const mention = Object.keys(event.mentions);
+    const one = senderID;
+    const two = mention[0] || (event.messageReply && event.messageReply.senderID);
+
+    if (!two) return api.sendMessage("⚠️ Please tag or reply to someone to kiss.", threadID, messageID);
+
+    try {
+      const pathImg = await makeImage({ one, two });
+      return api.sendMessage(
+        { body: "💋 Sending you a sweet kiss!", attachment: fs.createReadStream(pathImg) },
+        threadID,
+        () => fs.unlinkSync(pathImg),
+        messageID
+      );
+    } catch (err) {
+      console.error(err);
+      return api.sendMessage("❌ Error generating kiss2 image.", threadID, messageID);
     }
+  }
+};
