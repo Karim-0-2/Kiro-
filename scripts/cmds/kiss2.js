@@ -4,7 +4,7 @@ const vipPath = __dirname + "/cache/vip.json";
 
 module.exports = {
   config: {
-    name: "kiss2",
+    name: "kiss5",
     aliases: ["kiss"],
     version: "2.0",
     author: "NIB + Modified by FireTix",
