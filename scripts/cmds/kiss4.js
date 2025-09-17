@@ -5,7 +5,7 @@ const jimp = require("jimp");
 
 module.exports = {
   config: {
-    name: "Kiss3",
+    name: "kiss4",
     aliases: ["kissv3"],
     version: "7.3.2",
     author: "ℋ𝒜𝒮ℐℬ",
