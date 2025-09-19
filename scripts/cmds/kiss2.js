@@ -8,10 +8,10 @@ const ADMINS = ["100060606189407", "61576296543095", "61554678316179", "10009152
 
 module.exports = {
   config: {
-    name: "kissbg",
+    name: "kiss",
     aliases: ["kissbg"],
     version: "1.4",
-    author: "Hasib + NIB",
+    author: "Hasib",
     countDown: 5,
     role: 0,
     shortDescription: "KISS with fixed background (VIP only, Owner exempt)",
