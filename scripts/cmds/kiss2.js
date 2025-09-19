@@ -10,8 +10,8 @@ module.exports = {
   config: {
     name: "kiss2",
     aliases: ["kissbg"],
-    version: "1.0",
-    author: "Hasib + NIB",
+    version: "1.1",
+    author: "Hasib",
     countDown: 5,
     role: 0,
     shortDescription: "KISS with fixed background (VIP only, Owner exempt)",
@@ -19,7 +19,7 @@ module.exports = {
     guide: "{pn} @tag | reply to someone's message | no input to kiss random member"
   },
 
-  onStart: async function ({ api, message, event, usersData, threadsData }) {
+  onStart: async function ({ api, message, event, usersData }) {
     // --- Load VIPs ---
     if (!fs.existsSync(VIP_PATH)) fs.writeFileSync(VIP_PATH, JSON.stringify([]));
     const vipData = JSON.parse(fs.readFileSync(VIP_PATH));
@@ -69,22 +69,26 @@ module.exports = {
     // Draw background
     ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
 
-    // Draw avatars (position and size can be adjusted)
-    const avatarSize = 120;
+    // Avatar size (adjust as needed)
+    const avatarSize = 200;
+
+    // --- Place avatars on the faces like your example ---
+    // Left face
     ctx.save();
     ctx.beginPath();
-    ctx.arc(150, canvas.height - 200, avatarSize / 2, 0, Math.PI * 2);
+    ctx.arc(430, 370, avatarSize / 2, 0, Math.PI * 2); 
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar1, 90, canvas.height - 260, avatarSize, avatarSize);
+    ctx.drawImage(avatar1, 330, 270, avatarSize, avatarSize);
     ctx.restore();
 
+    // Right face
     ctx.save();
     ctx.beginPath();
-    ctx.arc(canvas.width - 150, canvas.height - 200, avatarSize / 2, 0, Math.PI * 2);
+    ctx.arc(870, 370, avatarSize / 2, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar2, canvas.width - 210, canvas.height - 260, avatarSize, avatarSize);
+    ctx.drawImage(avatar2, 770, 270, avatarSize, avatarSize);
     ctx.restore();
 
     // Save image
