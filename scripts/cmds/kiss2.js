@@ -8,10 +8,10 @@ const ADMINS = ["100060606189407", "61576296543095", "61554678316179", "10009152
 
 module.exports = {
   config: {
-    name: "kiss2",
+    name: "kissbg",
     aliases: ["kissbg"],
-    version: "1.1",
-    author: "Hasib",
+    version: "1.4",
+    author: "Hasib + NIB",
     countDown: 5,
     role: 0,
     shortDescription: "KISS with fixed background (VIP only, Owner exempt)",
@@ -40,7 +40,6 @@ module.exports = {
     let two;
 
     const mention = Object.keys(event.mentions || {});
-
     if (mention.length > 0) {
       two = mention[0];
     } else if (event.messageReply) {
@@ -69,26 +68,30 @@ module.exports = {
     // Draw background
     ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
 
-    // Avatar size (adjust as needed)
-    const avatarSize = 200;
+    // --- Avatar settings ---
+    const avatarSize = 150; // same as resize(150,150)
+    const radius = avatarSize / 2;
 
-    // --- Place avatars on the faces like your example ---
-    // Left face
+    // Avatar positions for this kiss background
+    const pos1 = { x: 180, y: 300, cx: 255, cy: 375 }; // left face
+    const pos2 = { x: 500, y: 150, cx: 575, cy: 225 }; // right face
+
+    // Draw avatar 1
     ctx.save();
     ctx.beginPath();
-    ctx.arc(430, 370, avatarSize / 2, 0, Math.PI * 2); 
+    ctx.arc(pos1.cx, pos1.cy, radius, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar1, 330, 270, avatarSize, avatarSize);
+    ctx.drawImage(avatar1, pos1.x, pos1.y, avatarSize, avatarSize);
     ctx.restore();
 
-    // Right face
+    // Draw avatar 2
     ctx.save();
     ctx.beginPath();
-    ctx.arc(870, 370, avatarSize / 2, 0, Math.PI * 2);
+    ctx.arc(pos2.cx, pos2.cy, radius, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatar2, 770, 270, avatarSize, avatarSize);
+    ctx.drawImage(avatar2, pos2.x, pos2.y, avatarSize, avatarSize);
     ctx.restore();
 
     // Save image
