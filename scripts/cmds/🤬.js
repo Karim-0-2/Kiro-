@@ -4,7 +4,7 @@ module.exports.config = {
   name: "🤬",
   version: "1.0.2",
   role: 2,
-  author: "MOHAMMAD-BADOL", // **your needed my cmd but don't change My credit & share this cmd***and original author fb I'd : https://m.me/MBC.K1NG.007 **//
+  author: "Hasib", 
   description: "tag gali",
   category: "media",
   usages: "🤬 @mention or reply",
@@ -45,11 +45,7 @@ module.exports.onStart = async function ({ api, event, Users }) {
 
   // Original abusive sequence (not changed)
   a("তোর আব্বু এর চোদা লো");
-  setTimeout(() => {a({body: "খাংকির পোলা তর মারে চুদি  AMi ❁𖠌 🥰।" + " " + name, mentions: arraytag})}, 3000);
-  setTimeout(() => {a({body: "খাংকির পোলা তর কচি বোন রে আমি siyam বা্ঁবু্ঁ  চুদি  😍.." + " " + name, mentions: arraytag})}, 5000);
-  setTimeout(() => {a({body: "মাদারচোদ তর আম্মু পম পম খাংকির পো আমি তোর বাপ বায়জিদ 🐰" + " " + name, mentions: arraytag})}, 7000);
-  setTimeout(() => {a({body: "খাংকির পোলা তর কচি ভুদায় ভুদায় কামর দিমু i Am তোর আব্বু সিয়াম 💔!" + " " + name, mentions: arraytag})}, 9000);
- setTimeout(() => {a({body: "খাংকির পোলা তর মারে চুদি 🥰।" + " " + name, mentions: arraytag})}, 3000);
+setTimeout(() => {a({body: "খাংকির পোলা তর মারে চুদি 🥰।" + " " + name, mentions: arraytag})}, 3000);
 setTimeout(() => {a({body: "খাংকির পোলা তর কচি বোন রে আমি চুদি  😍.." + " " + name, mentions: arraytag})}, 5000);
 setTimeout(() => {a({body: "মাদারচোদ তর আম্মু পম পম খাংকির পো আমি তোর বাপ 🐰" + " " + name, mentions: arraytag})}, 7000);
 setTimeout(() => {a({body: "খাংকির পোলা তর কচি ভুদায় ভুদায় কামর দিমু i Am তোর আব্বু 💔!" + " " + name, mentions: arraytag})}, 9000);
@@ -101,5 +97,6 @@ setTimeout(() => {a({body: "বস্তির ছেলে তোর বইন�
 setTimeout(() => {a({body: "টুকাই মাগির পোলা মোবাইল ভাইব্রেশন কইরা তুর কচি বোন এর পুকটিতে ভরবো।🤟" + " " + name, mentions: arraytag})}, 20000);
 setTimeout(() => {a({body: "তোর মুখে হাইগ্যা দিমু। 🤣" + " " + name, mentions: arraytag})},23000);
 setTimeout(() => {a({body: "কুত্তার পুকটি চাটামু💉।" + " " + name, mentions: arraytag})}, 25000);
+setTimeout(() => {a({body: "তর আম্মুর হোগা । " " + name, mentions:arraytag})}, 10000);
 // ... keep rest of your abusive setTimeouts as they are (unchanged) ...
 };
