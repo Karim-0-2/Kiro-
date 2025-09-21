@@ -1,156 +1,87 @@
-const { drive, getStreamFromURL, getExtFromUrl, getTime } = global.utils;
 const { existsSync, mkdirSync, createReadStream, unlinkSync } = global.nodemodule["fs-extra"];
 const { join } = global.nodemodule["path"];
+const https = require("https");
+const fs = require("fs");
 
-const DEFAULT_TEMPLATES = [
-`🌸 ʜᴇʟʟᴏ {userName} 🎀 ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ ᴏᴜʀ ɢʀᴏᴜᴘ — {boxName} 🌟 📌 ʏᴏᴜ'ʀᴇ ᴛʜᴇ {memberCount} ᴍᴇᴍʙᴇʀ ᴏɴ ᴛʜɪꜱ ɢʀᴏᴜᴘ! 💬 ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴄʜᴀᴛ, ᴄᴏɴɴᴇᴄᴛ ᴀɴᴅ ʜᴀᴠᴇ ꜰᴜɴ ʜᴇʀᴇ! ✿⃝ ʏᴏᴜʀ ʙʙᴢ_💋🧸ʙᴏᴛ ━━━━━━━━━━━━━━━━ 📅 {timestamp}`,
-`🌟 ᴡᴇʟᴄᴏᴍᴇ {userName}!\n🎉 ʏᴏᴜ'ʀᴇ ᴛʜᴇ {memberCount}ᴛʜ ᴍᴇᴍʙᴇʀ ɪɴ {boxName}!\n💌 ʜᴀᴠᴇ ꜰᴜɴ ᴀɴᴅ ᴄʜᴀᴛ ᴡɪᴛʜ ᴏᴛʜᴇʀ ᴍᴇᴍʙᴇʀs!\n━━━━━━━━━━━━━━━━\n🕒 {timestamp}`,
-`🎀 ʜᴇʟʟᴏ {userName}!\n🌸 ʏᴏᴜ'ᴠᴇ ᴊᴏɪɴᴇᴅ {boxName} — ᴡᴇ ᴀʀᴇ ʜᴀᴘᴘʏ ᴛᴏ ʜᴀᴠᴇ ʏᴏᴜ!\n📌 ᴛᴏᴛᴀʟ ᴍᴇᴍʙᴇʀs: {memberCount}\n💬 ᴇɴᴊᴏʏ ʏᴏᴜʀ ᴄʜᴀᴛ ʜᴇʀᴇ!\n━━━━━━━━━━━━━━━━\n📅 {timestamp}`
-];
-
-// Ensure GIF cache folder exists
-const GIF_PATH = join(__dirname, "..", "events", "cache", "joinGif");
+// Paths
+const GIF_PATH = join(__dirname, "cache", "joinGif");
 if (!existsSync(GIF_PATH)) mkdirSync(GIF_PATH, { recursive: true });
 
-module.exports = {
-    config: {
-        name: "setwelcome",
-        aliases: ["setwc"],
-        version: "4.0",
-        author: "Hasib",
-        countDown: 5,
-        role: 1,
-        description: "Multi-template anime-style welcome with GIF support",
-        category: "custom"
-    },
+// Hardcoded owner & bot info
+const OWNER_NAME = "𝐊𝐚𝐫𝐢𝐦 𝐁𝐞𝐧𝐳𝐢𝐦𝐚";
+const BOT_NAME = "𝐇𝐢𝐧𝐚𝐭𝐚 𝐒𝐚𝐧𝐚";
+const OWNER_FB = "https://www.facebook.com/karim.benzima.246709";
 
-    langs: {
-        en: {
-            turnedOn: "Welcome message enabled",
-            turnedOff: "Welcome message disabled",
-            missingContent: "Please enter welcome message content",
-            edited: "Welcome message edited to: %1",
-            reseted: "Welcome message reset to default",
-            noFile: "No welcome attachments to delete",
-            resetedFile: "Welcome attachments reset successfully",
-            missingFile: "Please reply with image/video/audio file",
-            addedFile: "Added %1 attachments to welcome message",
-            gifSaved: "GIF saved successfully!",
-            gifRemoved: "GIF removed successfully!",
-            gifNotExist: "No GIF set for this thread",
-            invalidURL: "Invalid GIF URL!"
-        }
-    },
+// Tenor GIF URL
+const WELCOME_GIF_URL = "https://tenor.com/bt2ol.gif";
+const WELCOME_GIF_PATH = join(GIF_PATH, "welcome.gif");
 
-    onStart: async function ({ args, threadsData, message, event }) {
-        const { threadID } = event;
-        const { data } = await threadsData.get(threadID);
+// Download GIF if not exists
+if (!existsSync(WELCOME_GIF_PATH)) {
+    const file = fs.createWriteStream(WELCOME_GIF_PATH);
+    https.get(WELCOME_GIF_URL, (res) => {
+        res.pipe(file);
+    });
+}
 
-        switch (args[0]) {
-            case "template": {
-                const index = parseInt(args[1]);
-                if (isNaN(index) || index < 1 || index > DEFAULT_TEMPLATES.length)
-                    return message.reply(`Invalid template number! Choose 1-${DEFAULT_TEMPLATES.length}`);
-                data.selectedTemplate = index - 1;
-                await threadsData.set(threadID, { data });
-                return message.reply(`Template ${index} selected successfully!`);
-            }
-
-            case "text": {
-                const text = args.slice(1).join(" ");
-                if (!text) return message.reply("Please enter welcome message content!");
-                if (text.toLowerCase() === "reset") delete data.welcomeMessage;
-                else data.welcomeMessage = text;
-                await threadsData.set(threadID, { data });
-                return message.reply(data.welcomeMessage ? "Custom welcome message set!" : "Welcome message reset to default template.");
-            }
-
-            case "file": {
-                if (args[1] === "reset") {
-                    if (!data.welcomeAttachment) return message.reply("No attachments to delete");
-                    try {
-                        await Promise.all(data.welcomeAttachment.map(fileId => drive.deleteFile(fileId)));
-                        delete data.welcomeAttachment;
-                    } catch { }
-                    await threadsData.set(threadID, { data });
-                    return message.reply("Attachments reset successfully");
-                } else {
-                    if (event.attachments.length === 0 && (!event.messageReply || event.messageReply.attachments.length === 0))
-                        return message.reply("Please reply with image/video/audio file");
-                    saveAttachments(message, event, threadID, event.senderID, threadsData);
-                }
-                break;
-            }
-
-            case "gif": {
-                const pathGif = join(GIF_PATH, `${threadID}.gif`);
-                if (args[1] === "remove") {
-                    if (!existsSync(pathGif)) return message.reply("No GIF set for this thread");
-                    unlinkSync(pathGif);
-                    return message.reply("GIF removed successfully!");
-                } else {
-                    const url = args[1];
-                    if (!url || !url.match(/(http(s?):)([/|.|\w|\s|-])*\.(?:gif|GIF)/g))
-                        return message.reply("Invalid GIF URL!");
-                    try {
-                        await global.utils.downloadFile(url, pathGif);
-                    } catch {
-                        return message.reply("Failed to download GIF. Check URL or internet.");
-                    }
-                    return message.reply("GIF saved successfully!");
-                }
-                break;
-            }
-
-            case "on":
-            case "off": {
-                const settings = (await threadsData.get(threadID)).settings || {};
-                settings.sendWelcomeMessage = args[0] === "on";
-                await threadsData.set(threadID, { settings });
-                return message.reply(settings.sendWelcomeMessage ? "Welcome messages enabled" : "Welcome messages disabled");
-            }
-
-            default:
-                message.SyntaxError();
-        }
-    },
-
-    onUserJoin: async function ({ threadsData, event }) {
-        const { threadID, userID } = event;
-        const { data, info } = await threadsData.get(threadID);
-        if (!info) return;
-
-        const memberCount = info.participantIDs.length;
-        const groupName = info.threadName;
-        const now = new Date();
-        const timestamp = `${now.toLocaleTimeString()} - ${now.toLocaleDateString()} - ${now.toLocaleString('en-US', { weekday: 'long' })}`;
-
-        let msg = data.welcomeMessage || DEFAULT_TEMPLATES[data.selectedTemplate || 0];
-        msg = msg.replace(/{userName}/g, `@${userID}`)
-                 .replace(/{boxName}/g, groupName)
-                 .replace(/{memberCount}/g, memberCount)
-                 .replace(/{timestamp}/g, timestamp);
-
-        const attachments = data.welcomeAttachment || [];
-        const pathGif = join(GIF_PATH, `${threadID}.gif`);
-        if (existsSync(pathGif)) attachments.push(createReadStream(pathGif));
-
-        global.GoatBot.sendMessage({ body: msg, mentions: [{ tag: `@${userID}`, id: userID }], attachment: attachments }, threadID);
-    }
+module.exports.config = {
+    name: "setwelcome",
+    eventType: ["log:subscribe"],
+    version: "1.0.0",
+    credits: "𝐊𝐚𝐫𝐢𝐦 𝐁𝐞𝐧𝐳𝐢𝐦𝐚",
+    description: "Bangla welcome message with Tenor GIF and auto-unsend",
+    dependencies: {}
 };
 
-async function saveAttachments(message, event, threadID, senderID, threadsData) {
-    const { data } = await threadsData.get(threadID);
-    const attachments = [...event.attachments, ...(event.messageReply?.attachments || [])].filter(a => ["photo","video","audio","animated_image"].includes(a.type));
-    if (!data.welcomeAttachment) data.welcomeAttachment = [];
+module.exports.run = async function({ api, event }) {
+    const { threadID, logMessageData } = event;
 
-    await Promise.all(attachments.map(async a => {  
-        const ext = getExtFromUrl(a.url);
-        const fileName = `${getTime()}.${ext}`;
-        const fileInfo = await drive.uploadFile(`setwelcome_${threadID}_${senderID}_${fileName}`, await getStreamFromURL(a.url));
-        data.welcomeAttachment.push(fileInfo.id);
-    }));
+    // Ignore if bot itself
+    if (logMessageData.addedParticipants.some(i => i.userFbId == api.getCurrentUserID())) {
+        await api.changeNickname(`• ${BOT_NAME}`, threadID, api.getCurrentUserID());
+        const botMsg = `চ্ঁলে্ঁ এ্ঁসে্ঁছি ${BOT_NAME} এঁখঁনঁ তোঁমাঁদেঁরঁ সাঁথেঁ আঁড্ডাঁ দিঁবঁ..!`;
+        api.sendMessage({ body: botMsg, attachment: createReadStream(WELCOME_GIF_PATH) }, threadID, (err, info) => {
+            if (err) console.error(err);
+            else setTimeout(() => api.unsendMessage(info.messageID), 10000); // unsend after 10s
+        });
+        return;
+    }
 
-    await threadsData.set(threadID, { data });
-    message.reply(`Added ${attachments.length} attachments to welcome message!`);
+    try {
+        const { threadName, participantIDs } = await api.getThreadInfo(threadID);
+        const newMembers = logMessageData.addedParticipants;
+
+        for (let user of newMembers) {
+            const userName = user.fullName;
+            const memberCount = participantIDs.length;
+
+            const welcomeMsg = `╭•┄┅═══❁🌺❁═══┅┄•╮
+
+আসসালামু আলাইকুম 💚
+
+╰•┄┅═══❁🌺❁═══┅┄•╯
+হাসি, মজা, ঠাট্টায় গড়ে উঠুক
+চিরস্থায়ী বন্ধুত্বের বন্ধন 🥰
+ভালোবাসা ও সম্পর্ক থাকুক আজীবন 💝
+
+›› প্রিয় ${userName},
+আপনি এই গ্রুপের ${memberCount} নম্বর মেম্বার! 🎉
+
+›› গ্রুপ: ${threadName}
+
+💌 🌺 𝐖𝐄𝐋𝐂𝐎𝐌𝐄 🌺 💌
+───────────────
+Bot ➢ ${BOT_NAME}
+Owner ➢ ${OWNER_NAME}
+FB ➢ ${OWNER_FB}
+❖⋆════════════════⋆❖`;
+
+            api.sendMessage({ body: welcomeMsg, mentions: [{ tag: userName, id: user.userFbId }], attachment: createReadStream(WELCOME_GIF_PATH) }, threadID, (err, info) => {
+                if (err) console.error(err);
+                else setTimeout(() => api.unsendMessage(info.messageID), 10000); // unsend after 10s
+            });
         }
+    } catch (e) {
+        console.error(e);
+    }
+};
