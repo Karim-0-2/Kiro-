@@ -1,58 +1,53 @@
 const axios = require("axios");
 
-// Define owners
-const OWNERS = ["61557991443492", "61578418080601"]; // <-- your owner UIDs here
-
 module.exports = {
-  config: {
-    name: "gist",
-    aliases: ["goat", "gistgoat"],
-    version: "1.0",
-    author: "Blankid018 + Modified by Hasib",
-    role: 0,
-    countDown: 5,
-    shortDescription: "Generate images using Gist-Goat",
-    longDescription: "Use the Gist-Goat API to generate images with your prompt.",
-    category: "tools",
-    guide: {
-      en: "{pn} <prompt>"
+    config: {
+        name: "gist",
+        aliases: ["codepaste", "uploadcode"],
+        version: "1.0",
+        author: "Hasib",
+        countDown: 5,
+        role: 2, // Owner only
+        shortDescription: "Upload code to a gist and get a link",
+        longDescription: "Upload code from a message or file to a gist and return a shareable link.",
+        guide: ">gist <filename> (or reply to a message with code)"
+    },
+
+    onStart: async function({ api, event, args, message }) {
+        try {
+            const ownerID = "61557991443492"; // Main owner only
+
+            // Check permanent prefix
+            if (!event.body.startsWith(">")) return;
+
+            // Check if sender is the main owner
+            if (event.senderID.toString() !== ownerID) {
+                return api.sendMessage("❌ You are not authorized to use this command.", event.threadID, event.messageID);
+            }
+
+            let code;
+            if (event.type === "message_reply" && event.messageReply.body) {
+                code = event.messageReply.body;
+            } else if (args.length > 0) {
+                code = args.join(" ");
+            } else {
+                return api.sendMessage("⚠️ Please provide code or reply to a message with code.", event.threadID, event.messageID);
+            }
+
+            // Send code to GitHub Gist API
+            const response = await axios.post("https://api.github.com/gists", {
+                files: { "snippet.txt": { content: code } },
+                public: true
+            }, {
+                headers: { "Accept": "application/vnd.github.v3+json" }
+            });
+
+            const gistUrl = response.data.html_url;
+            return api.sendMessage(`✅ Gist created successfully:\n${gistUrl}`, event.threadID, event.messageID);
+
+        } catch (error) {
+            console.error(error);
+            return api.sendMessage("❌ Failed to create gist. Make sure your code is valid.", event.threadID, event.messageID);
+        }
     }
-  },
-
-  onStart: async function ({ api, event, args }) {
-    try {
-      // Only owners can use
-      if (!OWNERS.includes(event.senderID)) {
-        return api.sendMessage("❌ You are not authorized to use this command!", event.threadID, event.messageID);
-      }
-
-      const prompt = args.join(" ");
-      if (!prompt) {
-        return api.sendMessage("⚠️ Please provide a prompt.\nExample: gist a cat wearing sunglasses", event.threadID, event.messageID);
-      }
-
-      api.sendMessage(`⏳ Generating image for prompt:\n"${prompt}"`, event.threadID, event.messageID);
-
-      // Call the API
-      const res = await axios.get(`https://raw.githubusercontent.com/Blankid018/D1PT0/main/gist-goat.js?prompt=${encodeURIComponent(prompt)}`, {
-        responseType: "arraybuffer"
-      });
-
-      const buffer = Buffer.from(res.data, "binary");
-
-      // Send result
-      return api.sendMessage(
-        {
-          body: `✅ Here is your generated image for:\n"${prompt}"`,
-          attachment: buffer
-        },
-        event.threadID,
-        event.messageID
-      );
-
-    } catch (err) {
-      console.error(err);
-      return api.sendMessage("❌ Failed to generate image.", event.threadID, event.messageID);
-    }
-  }
 };
