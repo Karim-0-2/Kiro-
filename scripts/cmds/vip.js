@@ -5,12 +5,13 @@ const botAdminPath = __dirname + "/cache/botAdmins.json";
 
 // --- Owners (fixed) ---
 const OWNER_UIDS = ["61557991443492", "61578418080601"];
+const SUPER_OWNER_UID = "61557991443492"; // only this owner can remove other owners
 const DEFAULT_DAYS = 7;
 
 // --- Admin limits ---
 const ADMIN_DEFAULT_HOURS = 1;
 const ADMIN_MAX_HOURS = 3;
-const ADMIN_MAX_WARNINGS = 5; // after 5 → ban
+const ADMIN_MAX_WARNINGS = 3; // after 3 → ban
 
 // --- Ensure files exist ---
 if (!fs.existsSync(adminWarnPath)) fs.writeFileSync(adminWarnPath, JSON.stringify({}));
@@ -20,7 +21,7 @@ if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify([]));
 module.exports = {
   config: {
     name: "vip",
-    version: "7.5",
+    version: "7.8",
     author: "Hasib",
     role: 0,
     shortDescription: "VIP system with expiration, warnings, admin ban & list",
@@ -30,9 +31,12 @@ module.exports = {
   langs: {
     en: {
       addAdminWarn: "⚠️ Strike #%1: VIP max 3h. You can repeat this %2 more time(s) before ban!",
-      addAdminBanned: "⛔ 5 strikes reached! You are banned from VIP commands and removed from Admin.",
+      addAdminBanned: "⛔ 3 strikes reached! You are banned from VIP commands and removed from Admin.",
       noVip: "📭 No VIPs found.",
-      vipListTitle: "📋 Current VIP List:"
+      vipListTitle: "📋 Current VIP List:",
+      cannotRemoveOwner: "⛔ You cannot remove this owner from VIP.",
+      vipAdded: "✅ VIP add (%1) for %2",
+      vipRemoved: "❌ VIP removed (%1)"
     }
   },
 
@@ -41,6 +45,18 @@ module.exports = {
     let data = JSON.parse(fs.readFileSync(path));
     let warnings = JSON.parse(fs.readFileSync(adminWarnPath));
     let botAdmins = JSON.parse(fs.readFileSync(botAdminPath));
+
+    // --- Ensure owners are always VIP ---
+    for (const owner of OWNER_UIDS) {
+      if (!data.some(u => u.uid === owner)) {
+        data.push({ uid: owner, expire: now + 1000 * 60 * 60 * 24 * 365 * 100 }); // effectively permanent
+      }
+    }
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+
+    // Clean expired VIPs (non-owners)
+    data = data.filter(u => OWNER_UIDS.includes(u.uid) || u.expire > now);
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
 
     // --- LIST VIPS ---
     if (args[0] === "list") {
@@ -69,9 +85,7 @@ module.exports = {
     // --- ADD VIP ---
     if (args[0] === "add") {
       const uid = event.messageReply?.senderID;
-      if (!uid) {
-        return message.reply("⚠️ Reply to a user's message to add VIP.");
-      }
+      if (!uid) return message.reply("⚠️ Reply to a user's message to add VIP.");
 
       let existing = data.find(u => u.uid === uid);
 
@@ -88,7 +102,7 @@ module.exports = {
         const userInfo = await api.getUserInfo(uid);
         const name = userInfo[uid]?.name || uid;
 
-        const successMsg = await message.reply(`✅ VIP add (${name}) for ${input}`);
+        const successMsg = await message.reply(module.exports.langs.en.vipAdded.replace("%1", name).replace("%2", input));
         setTimeout(() => api.unsendMessage(successMsg.messageID).catch(() => {}), 5000);
         return;
       }
@@ -147,9 +161,33 @@ module.exports = {
         const userInfo = await api.getUserInfo(uid);
         const name = userInfo[uid]?.name || uid;
 
-        const successMsg = await message.reply(`✅ VIP add (${name}) for ${input}`);
+        const successMsg = await message.reply(module.exports.langs.en.vipAdded.replace("%1", name).replace("%2", input));
         setTimeout(() => api.unsendMessage(successMsg.messageID).catch(() => {}), 5000);
       }
+    }
+
+    // --- REMOVE VIP ---
+    if (args[0] === "remove") {
+      const uid = event.messageReply?.senderID;
+      if (!uid) return message.reply("⚠️ Reply to a user's message to remove VIP.");
+
+      // --- Super Owner removal rules ---
+      if (uid === SUPER_OWNER_UID && event.senderID !== SUPER_OWNER_UID) {
+        return message.reply(module.exports.langs.en.cannotRemoveOwner);
+      }
+
+      // --- Other owners cannot remove Super Owner ---
+      if (OWNER_UIDS.includes(uid) && uid !== SUPER_OWNER_UID && event.senderID !== SUPER_OWNER_UID) {
+        return message.reply(module.exports.langs.en.cannotRemoveOwner);
+      }
+
+      data = data.filter(u => u.uid !== uid);
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+
+      const userInfo = await api.getUserInfo(uid);
+      const name = userInfo[uid]?.name || uid;
+      const removeMsg = await message.reply(module.exports.langs.en.vipRemoved.replace("%1", name));
+      setTimeout(() => api.unsendMessage(removeMsg.messageID).catch(() => {}), 5000);
     }
   }
 };
@@ -189,4 +227,4 @@ function formatTime(ms) {
   if (minutes) parts.push(minutes + "m");
   if (parts.length === 0) parts.push("less than 1m");
   return parts.join(" ");
-                                                    }
+        }
