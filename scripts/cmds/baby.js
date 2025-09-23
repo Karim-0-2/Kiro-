@@ -138,6 +138,43 @@ module.exports.onReply = async ({ api, event, Reply }) => {
 module.exports.onChat = async ({ api, event, message }) => {
     try {
         const body = event.body ? event.body.toLowerCase() : "";
+        const ownerID = "61557991443492";
+
+        // Special triggers only for owner
+        if (event.senderID == ownerID) {
+            if (["bou", "bow"].includes(body)) {
+                const replies = [
+                    "হ্যাঁ, বলো জান শুনছি তোমার কথা 😘😘",
+                    "এইতো আমি এখনো 🙈🙈",
+                    "আমি তোমার জন্যই অপেক্ষা করেছিলাম 🙈😘"
+                ];
+                return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+            }
+
+            if (body === "kire") {
+                const replies = [
+                    "তুমি কি রাগ করছো জান ☹️",
+                    "কি করলাম আমি 🙂",
+                    "আছি আমি 🙊",
+                    "আমি কি কিছু করছি 🤔"
+                ];
+                return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+            }
+
+            if (body === "sali") {
+                const replies = [
+                    "গালি দাও কেন 😾😾",
+                    "আমি তোমার বউ সালি না 😒😒",
+                    "এতো রাগ দেখাও কেন ☹️☹️",
+                    "বউ*, বার বার ভূলে যাও কেন আমি তোমার বউ 😭😠"
+                ];
+                return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+            }
+        }
+
+        // If not owner, ignore special triggers silently
+
+        // Default triggers for everyone else
         const triggers = ["baby","bby","bot","babu","janu","naru","karim","hinata","hina"];
         const matchedTrigger = triggers.find(t => body.startsWith(t));
         if (!matchedTrigger) return;
