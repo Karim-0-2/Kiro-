@@ -14,13 +14,13 @@ module.exports = {
   config: {
     name: "sexvid",
     aliases: ["sex","sexvid"],
-    version: "2.1",
+    version: "2.2",
     author: "nexo_here",
     countDown: 30,
     role: 2,
     shortDescription: "",
     longDescription: "get kanda/p***n video hilake sojaa",
-    category: "𝗦𝘂𝗽𝗲𝗿 𝗩𝗶𝗽",
+    category: "18+",
     guide: "{p}{n}",
   },
 
@@ -31,12 +31,11 @@ module.exports = {
 
     // Super VIP check
     if (!checkSuperVip(senderID)) {
-      return message.reply("⛔ Only Super VIPs or the Super Owner can use this command.");
+      return api.setMessageReaction("❌", event.messageID, () => {}, true);
     }
 
-    const loadingMessage = await message.reply({
-      body: "Tham video dicchi ektu Dara 😏",
-    });
+    // React with ⏳ to indicate loading
+    api.setMessageReaction("⏳", event.messageID, () => {}, true);
 
     const link = [
       "https://drive.google.com/uc?export=download&id=1-gJdG8bxmZLyOC7-6E4A5Hm95Q9gWIPO",
@@ -44,7 +43,6 @@ module.exports = {
       "https://drive.google.com/uc?export=download&id=1-vHh7XBtPOS3s42q-s8s30Bzsx2u6czu",
       "https://drive.google.com/uc?export=download&id=11IUd-PDHozLmh_RtvSf0S-f3G6wut1ZT",
       "https://drive.google.com/uc?export=download&id=12YCqZovJ8sVZZZTDLu8dv8NAwsMGfqiB",
-      "https://drive.google.com/uc?export=download&id=12eIiCYpd_Jm8zIVRSkqlSt7W-7OsxB6g",
       // add more links here...
     ];
 
@@ -56,13 +54,13 @@ module.exports = {
     const randomVideo = availableVideos[randomIndex];
     this.sentVideos.push(randomVideo);
 
-    message.reply({
+    // Send the video
+    await message.reply({
       body: 'Dekh beta 😂',
       attachment: await global.utils.getStreamFromURL(randomVideo),
     });
 
-    setTimeout(() => {
-      api.unsendMessage(loadingMessage.messageID).catch(() => {});
-    }, 50000);
+    // Replace ⏳ with ✅ to indicate success
+    api.setMessageReaction("✅", event.messageID, () => {}, true);
   },
 };
