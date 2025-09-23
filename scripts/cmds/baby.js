@@ -148,7 +148,7 @@ module.exports.onChat = async ({ api, event, message }) => {
                     "এইতো আমি এখনো 🙈🙈",
                     "আমি তোমার জন্যই অপেক্ষা করেছিলাম 🙈😘"
                 ];
-                return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+                sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
             }
 
             if (body === "kire") {
@@ -158,7 +158,7 @@ module.exports.onChat = async ({ api, event, message }) => {
                     "আছি আমি 🙊",
                     "আমি কি কিছু করছি 🤔"
                 ];
-                return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+                sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
             }
 
             if (body === "sali") {
@@ -168,14 +168,16 @@ module.exports.onChat = async ({ api, event, message }) => {
                     "এতো রাগ দেখাও কেন ☹️☹️",
                     "বউ*, বার বার ভূলে যাও কেন আমি তোমার বউ 😭😠"
                 ];
-                return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+                sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
             }
         }
 
-        // If not owner, ignore special triggers silently
+        // Everyone else silently ignores these special words
+        const specialWords = ["bou", "bow", "kire", "sali"];
+        if (specialWords.includes(body) && event.senderID != ownerID) return;
 
-        // Default triggers for everyone else
-        const triggers = ["baby","bby","bot","babu","janu","naru","karim","hinata","hina"];
+        // Default triggers for everyone (including owner talking normally)
+        const triggers = ["baby","bby","bot","babu","janu","naru","karim","hinata","hina","jamai"];
         const matchedTrigger = triggers.find(t => body.startsWith(t));
         if (!matchedTrigger) return;
 
@@ -186,6 +188,7 @@ module.exports.onChat = async ({ api, event, message }) => {
             return sendAndRegister(api, event, randomReplies[Math.floor(Math.random() * randomReplies.length)]);
         }
 
+        // Chat reply from API
         const res = (await axios.get(`${baseApiUrl()}/baby?text=${encodeURIComponent(userMessage)}&senderID=${event.senderID}&font=1`)).data.reply;
         return sendAndRegister(api, event, res, { res });
 
