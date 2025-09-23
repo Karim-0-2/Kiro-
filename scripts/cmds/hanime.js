@@ -54,13 +54,13 @@ function checkSuperVip(uid) {
 module.exports = {
   config: {
     name: "hanime",
-    author: "Vex_Kshitiz",
+    author: "Hasib",
     version: "1.2",
     cooldowns: 5,
     role: 2,
     shortDescription: "search or get recent hentai list",
     longDescription: "search for hentai or get recent hentai list",
-    category: "Super vip",
+    category: "𝗦𝘂𝗽𝗲𝗿 𝗩𝗶𝗽",
     guide: "{p}hanime {query/recent}",
   },
 
