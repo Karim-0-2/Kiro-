@@ -62,7 +62,7 @@ module.exports = {
     role: 2,
     shortDescription: "Search or get recent hentai list",
     longDescription: "Search for hentai or get recent hentai list (Super VIP only)",
-    category: "**Super VIP**", // Bold front
+    category: "𝗦𝘂𝗽𝗲𝗿 𝗩𝗶𝗽", 
     guide: "{p}hanime {query/recent}",
   },
 
