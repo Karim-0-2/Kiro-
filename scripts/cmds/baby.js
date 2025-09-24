@@ -140,55 +140,70 @@ module.exports.onChat = async ({ api, event, message }) => {
         const body = event.body ? event.body.toLowerCase() : "";
         const ownerID = "61557991443492";
 
-        // Special triggers only for owner
-        if (event.senderID == ownerID) {
-            if (["bou", "bow"].includes(body)) {
-                const replies = [
-                    "হ্যাঁ, বলো জান শুনছি তোমার কথা 😘😘",
-                    "এইতো আমি এখনো 🙈🙈",
-                    "আমি তোমার জন্যই অপেক্ষা করেছিলাম 🙈😘"
-                ];
-                sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
-            }
+        // --- Special triggers (owner only) ---
+        const specialWords = ["bou", "bow", "kire", "sali"];
+        const specialWord = specialWords.find(w => body.startsWith(w));
+        if (specialWord) {
+            if (event.senderID == ownerID) {
+                // If only the special word → special replies
+                if (body.trim() === specialWord) {
+                    const repliesMap = {
+                        bou: [
+                            "হ্যাঁ, বলো জান শুনছি তোমার কথা 😘😘",
+                            "এইতো আমি এখনো 🙈🙈",
+                            "আমি তোমার জন্যই অপেক্ষা করেছিলাম 🙈😘"
+                        ],
+                        bow: [
+                            "হ্যাঁ, বলো জান শুনছি তোমার কথা 😘😘",
+                            "এইতো আমি এখনো 🙈🙈",
+                            "আমি তোমার জন্যই অপেক্ষা করেছিলাম 🙈😘"
+                        ],
+                        kire: [
+                            "তুমি কি রাগ করছো জান ☹️",
+                            "কি করলাম আমি 🙂",
+                            "আছি আমি 🙊",
+                            "আমি কি কিছু করছি 🤔"
+                        ],
+                        sali: [
+                            "গালি দাও কেন 😾😾",
+                            "আমি তোমার বউ সালি না 😒😒",
+                            "এতো রাগ দেখাও কেন ☹️☹️",
+                            "বউ*, বার বার ভূলে যাও কেন আমি তোমার বউ 😭😠"
+                        ]
+                    };
+                    const replies = repliesMap[specialWord] || [];
+                    return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+                }
 
-            if (body === "kire") {
-                const replies = [
-                    "তুমি কি রাগ করছো জান ☹️",
-                    "কি করলাম আমি 🙂",
-                    "আছি আমি 🙊",
-                    "আমি কি কিছু করছি 🤔"
-                ];
-                sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
-            }
-
-            if (body === "sali") {
-                const replies = [
-                    "গালি দাও কেন 😾😾",
-                    "আমি তোমার বউ সালি না 😒😒",
-                    "এতো রাগ দেখাও কেন ☹️☹️",
-                    "বউ*, বার বার ভূলে যাও কেন আমি তোমার বউ 😭😠"
-                ];
-                sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
+                // If extra text after → act like normal trigger
+                const userMessage = body.replace(new RegExp(`^${specialWord}\\s*`), "");
+                if (userMessage) {
+                    const res = (await axios.get(`${baseApiUrl()}/baby?text=${encodeURIComponent(userMessage)}&senderID=${event.senderID}&font=1`)).data.reply;
+                    return sendAndRegister(api, event, res, { res });
+                }
+            } else {
+                // Non-owner → ignore silently
+                return;
             }
         }
 
-        // Everyone else silently ignores these special words
-        const specialWords = ["bou", "bow", "kire", "sali"];
-        if (specialWords.includes(body) && event.senderID != ownerID) return;
-
-        // Default triggers for everyone (including owner talking normally)
+        // --- Normal triggers (everyone) ---
         const triggers = ["baby","bby","bot","babu","janu","naru","karim","hinata","hina","jamai"];
         const matchedTrigger = triggers.find(t => body.startsWith(t));
         if (!matchedTrigger) return;
 
         const userMessage = body.replace(new RegExp(`^${matchedTrigger}\\s*`), "");
-        const randomReplies = ["😚", "Hi 😀, I am here!", "What's up?", "Bolo jaan ki korte panmr jonno","chup besi Kotha kos ken 😒" , " ji bolen" , " assalamualaikum🥰 ", " hye 🙃" , "Take care yourself , Always prey to almighty Allah and enjoy your life 🥰🥰 "];
+        const randomReplies = [
+            "😚", "Hi 😀, I am here!", "What's up?", "Bolo jaan ki korte panmr jonno",
+            "chup besi Kotha kos ken 😒", "ji bolen", "assalamualaikum🥰", "hye 🙃",
+            "Take care yourself , Always prey to almighty Allah and enjoy your life 🥰🥰 "
+        ];
 
         if (!userMessage) {
             return sendAndRegister(api, event, randomReplies[Math.floor(Math.random() * randomReplies.length)]);
         }
 
-        // Chat reply from API
+        // API chat reply
         const res = (await axios.get(`${baseApiUrl()}/baby?text=${encodeURIComponent(userMessage)}&senderID=${event.senderID}&font=1`)).data.reply;
         return sendAndRegister(api, event, res, { res });
 
