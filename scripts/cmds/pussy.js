@@ -13,14 +13,14 @@ function checkSuperVip(uid) {
 module.exports = {
   config: {
     name: "pussy",
-    aliases: ["𝗦𝘂𝗽𝗲𝗿 𝗩𝗶𝗽"],
+    aliases: ["pussy"],
     version: "1.1",
     author: "Doru fix by kivv",
     countDown: 5,
     role: 2,
     shortDescription: "send you pic of pussy",
     longDescription: "sends u pic of girls pussy",
-    category: "18+",
+    category: "𝗦𝘂𝗽𝗲𝗿 𝗩𝗶𝗽",
     guide: "{pn}"
   },
 
@@ -30,7 +30,7 @@ module.exports = {
       return message.send("⛔ Only Super VIPs or the Super Owner can use this command.");
     }
 
-    const link = [
+    const links = [
       "https://i.ibb.co/jfqMF07/image.jpg",
       "https://i.ibb.co/tBBCS4y/image.jpg",
       "https://i.ibb.co/3zpyMVY/image.jpg",
@@ -42,8 +42,9 @@ module.exports = {
       "https://i.ibb.co/CnfMVpg/image.jpg"
     ];
 
-    const img = link[Math.floor(Math.random() * link.length)];
-    message.send({
+    const img = links[Math.floor(Math.random() * links.length)];
+
+    await message.send({
       body: '「 Pussy💦🥵 」',
       attachment: await global.utils.getStreamFromURL(img)
     });
