@@ -18,9 +18,9 @@ module.exports = {
     author: "nexo_here",
     countDown: 30,
     role: 2,
-    shortDescription: "",
-    longDescription: "get kanda/p***n video hilake sojaa",
-    category: "18+",
+    shortDescription: "Get kanda/p***n video",
+    longDescription: "Sends kanda/p***n videos directly to Super VIPs",
+    category: "𝗦𝘂𝗽𝗲𝗿 𝗩𝗶𝗽", 
     guide: "{p}{n}",
   },
 
@@ -43,12 +43,13 @@ module.exports = {
       "https://drive.google.com/uc?export=download&id=1-vHh7XBtPOS3s42q-s8s30Bzsx2u6czu",
       "https://drive.google.com/uc?export=download&id=11IUd-PDHozLmh_RtvSf0S-f3G6wut1ZT",
       "https://drive.google.com/uc?export=download&id=12YCqZovJ8sVZZZTDLu8dv8NAwsMGfqiB",
-      // add more links here...
+      // add more links if needed
     ];
 
+    // Filter out already sent videos
     const availableVideos = link.filter(video => !this.sentVideos.includes(video));
 
-    if (availableVideos.length === 0) this.sentVideos = [];
+    if (availableVideos.length === 0) this.sentVideos = link; // Reset if all sent
 
     const randomIndex = Math.floor(Math.random() * availableVideos.length);
     const randomVideo = availableVideos[randomIndex];
