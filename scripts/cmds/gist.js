@@ -1,53 +1,54 @@
-const axios = require("axios");
+const fs = require('fs');
+const axios = require('axios');
 
-module.exports = {
-    config: {
-        name: "gist",
-        aliases: ["codepaste", "uploadcode"],
-        version: "1.0",
-        author: "Hasib",
-        countDown: 5,
-        role: 2, // Owner only
-        shortDescription: "Upload code to a gist and get a link",
-        longDescription: "Upload code from a message or file to a gist and return a shareable link.",
-        guide: ">gist <filename> (or reply to a message with code)"
-    },
+const baseApiUrl = async () => {
+  const base = await axios.get('https://raw.githubusercontent.com/Blankid018/D1PT0/main/baseApiUrl.json');
+  return base.data.api;
+};
 
-    onStart: async function({ api, event, args, message }) {
-        try {
-            const ownerID = "61557991443492"; // Main owner only
+module.exports.config = {
+  name: "gist",
+  version: "6.9.0",
+  role: 2,
+  author: "dipto",
+  usePrefix: true,
+  description: "Convert code into link",
+  category: "convert",
+  guide: { en: "[filename]/[reply and file name]" },
+  countDown: 1
+};
 
-            // Check permanent prefix
-            if (!event.body.startsWith(">")) return;
+module.exports.onStart = async function ({ api, event, args }) {
+  const admin = ["61557991443492"];
+  const fileName = args[0];
 
-            // Check if sender is the main owner
-            if (event.senderID.toString() !== ownerID) {
-                return api.sendMessage("❌ You are not authorized to use this command.", event.threadID, event.messageID);
-            }
+  if (!admin.includes(event.senderID)) {
+    api.sendMessage("⚠ | You do not have permission to use this command.", event.threadID, event.messageID);
+    return;
+  }
 
-            let code;
-            if (event.type === "message_reply" && event.messageReply.body) {
-                code = event.messageReply.body;
-            } else if (args.length > 0) {
-                code = args.join(" ");
-            } else {
-                return api.sendMessage("⚠️ Please provide code or reply to a message with code.", event.threadID, event.messageID);
-            }
+  const path = `scripts/cmds/${fileName}.js`;
+  try {
+    let code = '';
 
-            // Send code to GitHub Gist API
-            const response = await axios.post("https://api.github.com/gists", {
-                files: { "snippet.txt": { content: code } },
-                public: true
-            }, {
-                headers: { "Accept": "application/vnd.github.v3+json" }
-            });
-
-            const gistUrl = response.data.html_url;
-            return api.sendMessage(`✅ Gist created successfully:\n${gistUrl}`, event.threadID, event.messageID);
-
-        } catch (error) {
-            console.error(error);
-            return api.sendMessage("❌ Failed to create gist. Make sure your code is valid.", event.threadID, event.messageID);
-        }
+    if (event.type === "message_reply") {
+      code = event.messageReply.body;
+    } else {
+      code = await fs.promises.readFile(path, 'utf-8');
     }
+
+    const en = encodeURIComponent(code);
+
+    const response = await axios.post(`${await baseApiUrl()}/gist`, {
+      code: en,
+      nam: `${fileName}.js`
+    });
+
+    const diptoUrl = response.data.data;
+    api.sendMessage(diptoUrl, event.threadID, event.messageID);
+
+  } catch (error) {
+    console.error("An error occurred:", error);
+    api.sendMessage("command not found or api problem.", event.threadID, event.messageID);
+  }
 };
