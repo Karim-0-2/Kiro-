@@ -5,10 +5,10 @@ module.exports = {
   config: {
     name: "onlyadminbox",
     aliases: ["onlyadbox", "adboxonly", "adminboxonly"],
-    version: "1.4",
+    version: "1.5",
     author: "Hasib",
     countDown: 5,
-    role: 1,
+    role: 1, // still keep role check, but override for owner below
     description: {
       vi: "bật/tắt chế độ chỉ quản trị của viên nhóm mới có thể sử dụng bot",
       en: "turn on/off only admin box can use bot"
@@ -40,6 +40,16 @@ module.exports = {
   },
 
   onStart: async function ({ args, message, event, threadsData, getLang, api, usersData }) {
+    // 🔥 Allow OWNER to bypass role requirement
+    if (event.senderID !== ownerID) {
+      // still enforce role for others
+      const threadInfo = await api.getThreadInfo(event.threadID);
+      const isGroupAdmin = threadInfo.adminIDs.some(e => e.id == event.senderID);
+      if (!isGroupAdmin) {
+        return message.reply("❌ Only group admins or the bot owner can toggle this setting.");
+      }
+    }
+
     let isSetNoti = false;
     let value;
     let keySetData = "data.onlyAdminBox";
@@ -74,9 +84,8 @@ module.exports = {
     const onlyAdmin = await threadsData.get(threadID, "data.onlyAdminBox", false);
     if (!onlyAdmin) return;
 
-    // If owner -> always allow
+    // 🔥 If owner -> always allow
     if (senderID === ownerID) {
-      // Greet only once per group
       if (!greetedGroups.has(threadID)) {
         greetedGroups.add(threadID);
         const ownerName = await usersData.getName(ownerID);
@@ -92,7 +101,7 @@ module.exports = {
           }
         );
       }
-      return; // allow usage
+      return; // owner can always use
     }
 
     // Check if user is group admin
@@ -102,7 +111,7 @@ module.exports = {
     if (!isGroupAdmin) {
       const hideNoti = await threadsData.get(threadID, "data.hideNotiMessageOnlyAdminBox", false);
       if (!hideNoti) {
-        message.reply("Only group admins can use bot commands in this group.");
+        message.reply("⚠️ Only group admins can use bot commands in this group.");
       }
       return; // block usage
     }
