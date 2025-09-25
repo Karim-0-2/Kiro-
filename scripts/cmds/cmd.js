@@ -498,4 +498,34 @@ function unloadScripts(folder, fileName, configCommands, getLang) {
 	const indexOnChat = allOnChat.findIndex(item => item == commandName);
 	if (indexOnChat != -1)
 		allOnChat.splice(indexOnChat, 1);
-	const indexOnEvent = allOnEvent.findIndex(item => item == comman
+	const indexOnEvent = allOnEvent.findIndex(item => item == commandName);
+if (indexOnEvent != -1)
+		allOnEvent.splice(indexOnEvent, 1);
+	const indexOnAnyEvent = allOnAnyEvent.findIndex(item => item == commandName);
+	if (indexOnAnyEvent != -1)
+		allOnAnyEvent.splice(indexOnAnyEvent, 1);
+	// ————————————————— CHECK ALIASES ————————————————— //
+	if (command.config.aliases) {
+		let aliases = command.config?.aliases || [];
+		if (typeof aliases == "string")
+			aliases = [aliases];
+		for (const alias of aliases)
+			GoatBot.aliases.delete(alias);
+	}
+	const setMap = folder == "cmds" ? "commands" : "eventCommands";
+	delete require.cache[require.resolve(pathCommand)];
+	GoatBot[setMap].delete(commandName);
+	log.master("UNLOADED", getLang("unloaded", commandName));
+	const commandUnload = configCommands[folder == "cmds" ? "commandUnload" : "commandEventUnload"] || [];
+	if (!commandUnload.includes(`${fileName}.js`))
+		commandUnload.push(`${fileName}.js`);
+	configCommands[folder == "cmds" ? "commandUnload" : "commandEventUnload"] = commandUnload;
+	fs.writeFileSync(global.client.dirConfigCommands, JSON.stringify(configCommands, null, 2));
+	return {
+		status: "success",
+		name: fileName
+	};
+}
+
+global.utils.loadScripts = loadScripts;
+global.utils.unloadScripts = unloadScripts;
