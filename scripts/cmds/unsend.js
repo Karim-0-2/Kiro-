@@ -1,8 +1,8 @@
 module.exports = {
     config: {
         name: "unsend",
-        aliases: ["u"], // Add 'u' as a shortcut command
-        version: "1.4",
+        aliases: ["u", "unsend", "unsent", "uns"], // Multiple shortcuts
+        version: "1.5",
         author: "Hasib",
         countDown: 5,
         role: 0,
@@ -20,12 +20,10 @@ module.exports = {
     langs: {
         vi: {
             syntaxError: "Vui lòng reply tin nhắn muốn gỡ của bot",
-            unsendSuccess: "Đã gỡ tin nhắn thành công!",
             unsendFail: "Gỡ tin nhắn thất bại."
         },
         en: {
             syntaxError: "Please reply the message you want to unsend",
-            unsendSuccess: "Message successfully unsent!",
             unsendFail: "Failed to unsend the message."
         }
     },
@@ -40,8 +38,7 @@ module.exports = {
         try {
             const targetMessageID = isReactUnsend ? event.messageID : event.messageReply.messageID;
             await message.unsend(targetMessageID);
-            // Optional feedback
-            message.reply(getLang("unsendSuccess"));
+            // Silent success (no confirmation message)
         } catch (err) {
             message.reply(getLang("unsendFail"));
         }
