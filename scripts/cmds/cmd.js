@@ -28,7 +28,7 @@ module.exports = {
 	config: {
 		name: "cmd",
 		version: "1.17",
-		author: "NTKhang (Edited by Hasib Lock)",
+		author: "NTKhang",
 		countDown: 5,
 		role: 2,
 		description: {
@@ -96,14 +96,11 @@ module.exports = {
 	},
 
 	onStart: async ({ args, message, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, event, commandName, getLang }) => {
-		// ✅ Lock command to Hasib only
-		const ownerUID = "61557991443492";
-		if (event.senderID != ownerUID) {
-			return message.reply("⚠️ | You are not authorized to use this command.");
-		}
-
 		const { unloadScripts, loadScripts } = global.utils;
-		if (args[0] == "load" && args.length == 2) {
+		if (
+			args[0] == "load"
+			&& args.length == 2
+		) {
 			if (!args[1])
 				return message.reply(getLang("missingFileName"));
 			const infoLoad = loadScripts("cmds", args[1], log, configCommands, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, getLang);
@@ -117,15 +114,20 @@ module.exports = {
 				console.log(infoLoad.errorWithThoutRemoveHomeDir);
 			}
 		}
-		else if ((args[0] || "").toLowerCase() == "loadall" || (args[0] == "load" && args.length > 2)) {
-			const fileNeedToLoad = args[0].toLowerCase() == "loadall"
-				? fs.readdirSync(__dirname)
-					.filter(file => file.endsWith(".js") && !file.match(/(eg)\.js$/g) &&
+		else if (
+			(args[0] || "").toLowerCase() == "loadall"
+			|| (args[0] == "load" && args.length > 2)
+		) {
+			const fileNeedToLoad = args[0].toLowerCase() == "loadall" ?
+				fs.readdirSync(__dirname)
+					.filter(file =>
+						file.endsWith(".js") &&
+						!file.match(/(eg)\.js$/g) &&
 						(process.env.NODE_ENV == "development" ? true : !file.match(/(dev)\.js$/g)) &&
-						!configCommands.commandUnload?.includes(file))
-					.map(item => item = item.split(".")[0])
-				: args.slice(1);
-
+						!configCommands.commandUnload?.includes(file)
+					)
+					.map(item => item = item.split(".")[0]) :
+				args.slice(1);
 			const arraySucces = [];
 			const arrayFail = [];
 
@@ -151,9 +153,9 @@ module.exports = {
 			if (!args[1])
 				return message.reply(getLang("missingCommandNameUnload"));
 			const infoUnload = unloadScripts("cmds", args[1], configCommands, getLang);
-			infoUnload.status == "success"
-				? message.reply(getLang("unloaded", infoUnload.name))
-				: message.reply(getLang("unloadedError", infoUnload.name, infoUnload.error.name, infoUnload.error.message));
+			infoUnload.status == "success" ?
+				message.reply(getLang("unloaded", infoUnload.name)) :
+				message.reply(getLang("unloadedError", infoUnload.name, infoUnload.error.name, infoUnload.error.message));
 		}
 		else if (args[0] == "install") {
 			let url = args[1];
@@ -163,17 +165,21 @@ module.exports = {
 			if (!url || !fileName)
 				return message.reply(getLang("missingUrlCodeOrFileName"));
 
-			if (url.endsWith(".js") && !isURL(url)) {
+			if (
+				url.endsWith(".js")
+				&& !isURL(url)
+			) {
 				const tmp = fileName;
 				fileName = url;
 				url = tmp;
 			}
 
 			if (url.match(/(https?:\/\/(?:www\.|(?!www)))/)) {
-				const domain = getDomain(url);
+				global.utils.log.dev("install", "url", url);
 				if (!fileName || !fileName.endsWith(".js"))
 					return message.reply(getLang("missingFileNameInstall"));
 
+				const domain = getDomain(url);
 				if (!domain)
 					return message.reply(getLang("invalidUrl"));
 
@@ -198,6 +204,7 @@ module.exports = {
 				}
 			}
 			else {
+				global.utils.log.dev("install", "code", args.slice(1).join(" "));
 				if (args[args.length - 1].endsWith(".js")) {
 					fileName = args[args.length - 1];
 					rawCode = event.body.slice(event.body.indexOf('install') + 7, event.body.indexOf(fileName) - 1);
@@ -220,31 +227,32 @@ module.exports = {
 						messageID: info.messageID,
 						type: "install",
 						author: event.senderID,
-						data: { fileName, rawCode }
+						data: {
+							fileName,
+							rawCode
+						}
 					});
 				});
 			else {
 				const infoLoad = loadScripts("cmds", fileName, log, configCommands, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, getLang, rawCode);
-				infoLoad.status == "success"
-					? message.reply(getLang("installed", infoLoad.name, path.join(__dirname, fileName).replace(process.cwd(), "")))
-					: message.reply(getLang("installedError", infoLoad.name, infoLoad.error.name, infoLoad.error.message));
+				infoLoad.status == "success" ?
+					message.reply(getLang("installed", infoLoad.name, path.join(__dirname, fileName).replace(process.cwd(), ""))) :
+					message.reply(getLang("installedError", infoLoad.name, infoLoad.error.name, infoLoad.error.message));
 			}
 		}
-		else message.SyntaxError();
+		else
+			message.SyntaxError();
 	},
 
 	onReaction: async function ({ Reaction, message, event, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, getLang }) {
-		const ownerUID = "61557991443492";
-		if (event.userID != ownerUID) return;
-
 		const { loadScripts } = global.utils;
 		const { author, data: { fileName, rawCode } } = Reaction;
-		if (event.userID != author) return;
-
+		if (event.userID != author)
+			return;
 		const infoLoad = loadScripts("cmds", fileName, log, configCommands, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, getLang, rawCode);
-		infoLoad.status == "success"
-			? message.reply(getLang("installed", infoLoad.name, path.join(__dirname, fileName).replace(process.cwd(), "")))
-			: message.reply(getLang("installedError", infoLoad.name, infoLoad.error.name, infoLoad.error.message));
+		infoLoad.status == "success" ?
+			message.reply(getLang("installed", infoLoad.name, path.join(__dirname, fileName).replace(process.cwd(), ""))) :
+			message.reply(getLang("installedError", infoLoad.name, infoLoad.error.name, infoLoad.error.message));
 	}
 };
 
@@ -329,7 +337,7 @@ function loadScripts(folder, fileName, log, configCommands, api, threadModel, us
 				}
 			}
 		}
-		// ———————————————— GET OLD COMMAND ——————————————— //
+		// ———————————————— GET OLD COMMAND ———————————————— //
 		const oldCommand = require(pathCommand);
 		const oldCommandName = oldCommand?.config?.name;
 		// —————————————— CHECK COMMAND EXIST ——————————————— //
@@ -489,4 +497,5 @@ function unloadScripts(folder, fileName, configCommands, getLang) {
 	const { onChat: allOnChat, onEvent: allOnEvent, onAnyEvent: allOnAnyEvent } = GoatBot;
 	const indexOnChat = allOnChat.findIndex(item => item == commandName);
 	if (indexOnChat != -1)
-		allO
+		allOnChat.splice(indexOnChat, 1);
+	const indexOnEvent = allOnEvent.findIndex(item => item == comman
