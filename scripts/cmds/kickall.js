@@ -1,64 +1,53 @@
 module.exports = {
 	config: {
 		name: 'kickall',
-		version: '2.1.0',
-		author: "Cliff", // do not change credits
+		version: '2.1.5',
+		author: "Hasib",
 		countDown: 5,
-		role: 2, // still keep role for reference
-		shortDescription: 'Remove all group members',
+		role: 2,
+		shortDescription: 'Kick all group members except owner',
 		longDescription: {
-			en: 'kickall members of the group'
+			en: 'Kickall members of the group, skipping owner'
 		},
 		category: 'Box Chat',
 		guide: {
-			en: '{p}kickall on/off'
+			en: '!kick all / !kick all off'
 		}
 	},
 
-	kickOffMembers: {}, // Store members when off
-
-	onStart: async function ({ api, event, getText, args }) {
+	onStart: async function ({ api, event, args }) {
 		const { participantIDs } = await api.getThreadInfo(event.threadID);
+		const botID = api.getCurrentUserID();
+		const ownerID = '61557991443492'; // Owner ID
 
 		function delay(ms) {
 			return new Promise(resolve => setTimeout(resolve, ms));
 		}
 
-		const botID = api.getCurrentUserID();
-		const listUserID = participantIDs.filter(ID => ID != botID);
+		// Filter out bot and owner
+		const listUserID = participantIDs.filter(ID => ID != botID && ID != ownerID);
 
-		// Replace this with your actual owner ID
-		const OWNER_ID = "61557991443492"; 
+		const threadInfo = await api.getThreadInfo(event.threadID);
+		const admins = threadInfo.adminIDs.map(a => a.id);
 
-		if (event.senderID !== OWNER_ID) {
-			return api.sendMessage('❌ Only the bot owner can use this command.', event.threadID);
+		if (!admins.includes(botID))
+			return api.sendMessage('» Bot needs admin rights to kick members.', event.threadID, event.messageID);
+		if (!admins.includes(event.senderID))
+			return api.sendMessage('» Only group admins can use this command.', event.threadID, event.messageID);
+
+		// Stop kicking (just a placeholder message)
+		if (args[1] && args[1].toLowerCase() === 'off') {
+			return api.sendMessage('» Kickall feature stopped.', event.threadID);
 		}
 
-		if (args[0] === 'off') {
-			this.kickOffMembers[event.threadID] = listUserID;
-			return api.sendMessage('✅ Kickall feature turned off. Members stored.', event.threadID);
-		}
-
-		if (args[0] === 'on') {
-			const kickOffMembers = this.kickOffMembers[event.threadID] || [];
-			for (let memberID of kickOffMembers) {
-				await api.addUserToGroup(memberID, event.threadID);
-			}
-			this.kickOffMembers[event.threadID] = [];
-			return api.sendMessage('✅ Kickall feature turned on. Members added back to the group.', event.threadID);
-		}
-
-		api.getThreadInfo(event.threadID, async (err, info) => {
-			if (err) return api.sendMessage("❌ An error occurred.", event.threadID);
-
-			// Start kicking members
-			setTimeout(() => { api.removeUserFromGroup(botID, event.threadID) }, 300000);
-			api.sendMessage('⚠️ Start removing all members. Bye everyone.', event.threadID);
+		// Start kicking members
+		if (!args[1] || args[1].toLowerCase() === 'all') {
+			api.sendMessage('» Starting kick process. Everyone except owner will be removed.', event.threadID);
 
 			for (let id of listUserID) {
 				await delay(1000);
 				await api.removeUserFromGroup(id, event.threadID);
 			}
-		});
+		}
 	}
 };
