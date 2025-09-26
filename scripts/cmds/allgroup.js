@@ -1,8 +1,8 @@
 module.exports.config = {
   name: "allgroups",
-  version: "2.4.0",
+  version: "2.5.0",
   permission: 0,
-  credits: "Nayan + Modified",
+  credits: "Nayan + Modified by Hasib",
   description: "Manage all groups (ban/out) - Owner only",
   prefix: true,
   category: "admin",
@@ -15,9 +15,9 @@ const OWNER_UID = "61557991443492";
 module.exports.handleReply = async function ({ api, event, Threads, handleReply }) {
   if (parseInt(event.senderID) !== parseInt(handleReply.author)) return;
 
-  const arg = event.body.split(" ");
-  const action = arg[0].toLowerCase();
-  const numbers = arg.slice(1);
+  const args = event.body.split(" ");
+  const action = args[0].toLowerCase();
+  const numbers = args.slice(1);
 
   if (!numbers.length) return api.sendMessage("❌ Please specify group numbers.", event.threadID, event.messageID);
 
@@ -48,16 +48,24 @@ module.exports.handleReply = async function ({ api, event, Threads, handleReply 
       }
 
       if (action === "out") {
-        const info = await Threads.getData(idgr);
-        const memberCount = info.data?.userInfo?.length || 0;
+        const info = await api.getThreadInfo(idgr);
 
+        // Skip if bot is admin
+        const botIsAdmin = info.adminIDs.some(ad => ad.id === api.getCurrentUserID());
+        if (botIsAdmin) {
+          api.sendMessage(`⚠️ Skipped leaving group "${info.name}" because bot is admin.`, event.threadID);
+          continue;
+        }
+
+        // Skip large groups
+        const memberCount = info.participantIDs?.length || 0;
         if (memberCount > 50) {
-          api.sendMessage(`⚠️ Skipped leaving large group (${info.name || idgr}) with ${memberCount} members.`, event.threadID);
+          api.sendMessage(`⚠️ Skipped leaving large group "${info.name}" with ${memberCount} members.`, event.threadID);
           continue;
         }
 
         await api.removeUserFromGroup(`${api.getCurrentUserID()}`, idgr);
-        api.sendMessage(`🚪 Left group: ${info.name || idgr}`, event.threadID);
+        api.sendMessage(`🚪 Left group: ${info.name}`, event.threadID);
       }
     } catch (err) {
       api.sendMessage(`❌ Failed to ${action} group ID: ${idgr}\nError: ${err.message}`, event.threadID);
@@ -82,7 +90,7 @@ module.exports.run = async function ({ api, event, Threads }) {
       groups.map(async g => {
         try {
           const data = await api.getThreadInfo(g.threadID);
-          return { id: g.threadID, name: g.name, sotv: data.userInfo.length };
+          return { id: g.threadID, name: g.name, sotv: data.participantIDs.length };
         } catch {
           return { id: g.threadID, name: g.name || "Unknown", sotv: 0 };
         }
@@ -92,12 +100,12 @@ module.exports.run = async function ({ api, event, Threads }) {
     const sortedList = listthread.sort((a, b) => b.sotv - a.sotv);
     let msg = "", groupid = [];
     sortedList.forEach((group, i) => {
-      msg += `${i + 1}. ${group.name}\ngroup id: ${group.id}\nmembers: ${group.sotv}\n\n`;
+      msg += `${i + 1}. ${group.name}\nGroup ID: ${group.id}\nMembers: ${group.sotv}\n\n`;
       groupid.push(group.id);
     });
 
     api.sendMessage(
-      msg + 'Reply with "out <number(s)>" or "ban <number(s)>" to leave or ban threads.\nYou can use ranges like "2-5".',
+      msg + 'Reply with "out <number(s)>" or "ban <number(s)>" to leave or ban groups.\nUse ranges like "2-5".',
       threadID,
       (err, info) => {
         if (!err) {
