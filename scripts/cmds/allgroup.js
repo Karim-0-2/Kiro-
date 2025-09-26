@@ -1,7 +1,7 @@
 module.exports.config = {
   name: "allgroups",
-  version: "2.2.0",
-  permission: 0, // permission check handled manually
+  version: "2.4.0",
+  permission: 0,
   credits: "Nayan + Modified",
   description: "Manage all groups (ban/out) - Owner only",
   prefix: true,
@@ -10,82 +10,108 @@ module.exports.config = {
   cooldowns: 5,
 };
 
-const OWNER_UID = "61557991443492"; // only this UID can use the command
+const OWNER_UID = "61557991443492";
 
-module.exports.handleReply = async function ({ api, event, args, Threads, handleReply }) {
-  // ✅ Only the author (owner) can reply
+module.exports.handleReply = async function ({ api, event, Threads, handleReply }) {
   if (parseInt(event.senderID) !== parseInt(handleReply.author)) return;
 
-  var arg = event.body.split(" ");
-  var idgr = handleReply.groupid[arg[1] - 1];
+  const arg = event.body.split(" ");
+  const action = arg[0].toLowerCase();
+  const numbers = arg.slice(1);
 
-  switch (handleReply.type) {
-    case "reply": {
-      if (arg[0].toLowerCase() === "ban") {
+  if (!numbers.length) return api.sendMessage("❌ Please specify group numbers.", event.threadID, event.messageID);
+
+  // Convert ranges like 2-5 into [2,3,4,5]
+  let indices = [];
+  numbers.forEach(n => {
+    if (n.includes("-")) {
+      const [start, end] = n.split("-").map(x => parseInt(x));
+      for (let i = start; i <= end; i++) indices.push(i - 1);
+    } else {
+      indices.push(parseInt(n) - 1);
+    }
+  });
+
+  indices = [...new Set(indices)]; // remove duplicates
+
+  for (let idx of indices) {
+    const idgr = handleReply.groupid[idx];
+    if (!idgr) continue;
+
+    try {
+      if (action === "ban") {
         const data = (await Threads.getData(idgr)).data || {};
         data.banned = 1;
         await Threads.setData(idgr, { data });
         global.data.threadBanned.set(parseInt(idgr), 1);
-        api.sendMessage(`✅ Successfully banned group ID: ${idgr}`, event.threadID, event.messageID);
-        break;
+        api.sendMessage(`✅ Banned group ID: ${idgr}`, event.threadID);
       }
 
-      if (arg[0].toLowerCase() === "out") {
-        api.removeUserFromGroup(`${api.getCurrentUserID()}`, idgr);
-        api.sendMessage(
-          `🚪 Left thread with ID: ${idgr}\n${(await Threads.getData(idgr)).name}`,
-          event.threadID,
-          event.messageID
-        );
-        break;
+      if (action === "out") {
+        const info = await Threads.getData(idgr);
+        const memberCount = info.data?.userInfo?.length || 0;
+
+        if (memberCount > 50) {
+          api.sendMessage(`⚠️ Skipped leaving large group (${info.name || idgr}) with ${memberCount} members.`, event.threadID);
+          continue;
+        }
+
+        await api.removeUserFromGroup(`${api.getCurrentUserID()}`, idgr);
+        api.sendMessage(`🚪 Left group: ${info.name || idgr}`, event.threadID);
       }
+    } catch (err) {
+      api.sendMessage(`❌ Failed to ${action} group ID: ${idgr}\nError: ${err.message}`, event.threadID);
     }
   }
 };
 
-module.exports.run = async function ({ api, event, client }) {
+module.exports.run = async function ({ api, event, Threads }) {
   const { senderID, threadID, messageID } = event;
 
-  // 🔒 Only owner can use this command
-  if (senderID !== OWNER_UID) {
+  if (parseInt(senderID) !== parseInt(OWNER_UID)) {
     return api.sendMessage("🚫 Only the bot owner can use this command.", threadID, messageID);
   }
 
-  // ✅ Fetch all groups
-  var inbox = await api.getThreadList(100, null, ["INBOX"]);
-  let list = [...inbox].filter(group => group.isSubscribed && group.isGroup);
+  try {
+    const inbox = await api.getThreadList(100, null, ["INBOX"]);
+    const groups = inbox.filter(g => g.isSubscribed && g.isGroup);
 
-  var listthread = [];
-  for (var groupInfo of list) {
-    let data = await api.getThreadInfo(groupInfo.threadID);
-    listthread.push({
-      id: groupInfo.threadID,
-      name: groupInfo.name,
-      sotv: data.userInfo.length,
-    });
-  }
+    if (!groups.length) return api.sendMessage("ℹ️ The bot is not in any groups.", threadID, messageID);
 
-  // Sort by member count
-  var listbox = listthread.sort((a, b) => b.sotv - a.sotv);
-
-  let msg = "",
-    i = 1;
-  var groupid = [];
-  for (var group of listbox) {
-    msg += `${i++}. ${group.name}\ngroup id: ${group.id}\nmembers: ${group.sotv}\n\n`;
-    groupid.push(group.id);
-  }
-
-  api.sendMessage(
-    msg + 'Reply with "out <number>" or "ban <number>" to leave or ban that thread.',
-    threadID,
-    (e, data) =>
-      global.client.handleReply.push({
-        name: this.config.name,
-        author: senderID,
-        messageID: data.messageID,
-        groupid,
-        type: "reply",
+    const listthread = await Promise.all(
+      groups.map(async g => {
+        try {
+          const data = await api.getThreadInfo(g.threadID);
+          return { id: g.threadID, name: g.name, sotv: data.userInfo.length };
+        } catch {
+          return { id: g.threadID, name: g.name || "Unknown", sotv: 0 };
+        }
       })
-  );
+    );
+
+    const sortedList = listthread.sort((a, b) => b.sotv - a.sotv);
+    let msg = "", groupid = [];
+    sortedList.forEach((group, i) => {
+      msg += `${i + 1}. ${group.name}\ngroup id: ${group.id}\nmembers: ${group.sotv}\n\n`;
+      groupid.push(group.id);
+    });
+
+    api.sendMessage(
+      msg + 'Reply with "out <number(s)>" or "ban <number(s)>" to leave or ban threads.\nYou can use ranges like "2-5".',
+      threadID,
+      (err, info) => {
+        if (!err) {
+          global.client.handleReply.push({
+            name: this.config.name,
+            author: senderID,
+            messageID: info.messageID,
+            groupid,
+            type: "reply",
+          });
+        }
+      }
+    );
+  } catch (err) {
+    api.sendMessage(`❌ Failed to fetch groups.\nError: ${err.message}`, threadID, messageID);
+  }
 };
