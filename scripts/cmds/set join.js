@@ -4,7 +4,7 @@ module.exports.config = {
     hasPermssion: 1,
     credits: "𝗞𝗮𝗿𝗶𝗺 𝗕𝗲𝗻𝘇𝗶𝗺𝗮",
     description: "Edit text/animated images when new members join",
-    commandCategory: "config",
+    Category: "Custom",
     usages: "[gif/text] [Text or url to download gif image]",
     cooldowns: 10,
     dependencies: {
