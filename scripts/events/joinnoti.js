@@ -1,124 +1,86 @@
-const { drive, getStreamFromURL, getExtFromUrl, getTime } = global.utils;
-const { existsSync, mkdirSync, createReadStream, readdirSync } = global.nodemodule["fs-extra"];
+const { existsSync, mkdirSync, createReadStream } = global.nodemodule["fs-extra"];
 const { join } = global.nodemodule["path"];
 
 module.exports = {
   config: {
     name: "joinnoti",
     eventType: ["log:subscribe"],
-    version: "2.0.0",
-    credits: "𝗞𝗮𝗿𝗶𝗺 𝗕𝗲𝗻𝘇𝗶𝗺𝗮",
-    description: "Beautiful Bangla welcome with random gif/video support",
+    version: "3.1.0",
+    credits: "Hasib",
+    description: "English bot-join, Bangla user-join with join.jpeg + owner contact",
     category: "events"
   },
 
+  // Ensure cache folder exists
   onLoad() {
-    const cachePaths = [
-      join(__dirname, "cache", "joinGif"),
-      join(__dirname, "cache", "randomgif")
-    ];
-    for (const path of cachePaths) {
-      if (!existsSync(path)) mkdirSync(path, { recursive: true });
-    }
+    const gifPath = join(__dirname, "cache", "joinGif");
+    if (!existsSync(gifPath)) mkdirSync(gifPath, { recursive: true });
   },
 
   async run({ api, event }) {
     const { threadID, logMessageData } = event;
-    const botPrefix = global.config.PREFIX || "/";
-    const botName = global.config.BOTNAME || "𝗦𝗵𝗮𝗵𝗮𝗱𝗮𝘁 𝗖𝗵𝗮𝘁 𝗕𝗼𝘁";
 
-    // If bot is added to group
+    // Owner/Admin FB link
+    const ownerFB = "https://m.me/61557991443492"; // Replace with your actual FB link
+
+    // ----- If bot is added -----
     if (logMessageData.addedParticipants.some(i => i.userFbId == api.getCurrentUserID())) {
-      await api.changeNickname(`[ ${botPrefix} ] • ${botName}`, threadID, api.getCurrentUserID());
-
-      const randomGifPath = join(__dirname, "cache", "randomgif");
-      const files = readdirSync(randomGifPath).filter(file =>
-        [".mp4", ".jpg", ".png", ".jpeg", ".gif", ".mp3"].some(ext => file.endsWith(ext))
-      );
-      const selected = files.length > 0
-        ? createReadStream(join(randomGifPath, files[Math.floor(Math.random() * files.length)]))
-        : null;
-
-      const introMsg = `╭•┄┅═══❁🌺❁═══┅┄•╮
-আ্ঁস্ঁসা্ঁলা্ঁমু্ঁ💚আ্ঁলা্ঁই্ঁকু্ঁম্ঁ
-╰•┄┅═══❁🌺❁═══┅┄•╯
-
-চ্ঁলে্ঁ এ্ঁসে্ঁছি্ঁ 𝗛𝗶𝗻𝗮𝘁𝗮 𝘀𝗮𝗻𝗮!
-এঁখঁনঁ তোঁমাঁদেঁরঁ সাঁথেঁ আঁড্ডাঁ দিঁবঁ..!
-
-➤ কমান্ড দেখতে:  
-${botPrefix}Help  
-${botPrefix}Info  
-${botPrefix}Admin  
-
-★ অভিযোগ/হেল্প এর জন্য এডমিনকে নক করুন ★
-➤ Messenger: m.me/61557991443492  
-
-❖⋆═══════════════════════⋆❖
-     𝐁𝐨𝐭 𝐎𝐰𝐧𝐞𝐫 ➢ 𝗞𝗮𝗿𝗶𝗺 𝗕𝗲𝗻𝘇𝗶𝗺𝗮`;
-
       return api.sendMessage(
-        selected ? { body: introMsg, attachment: selected } : { body: introMsg },
+        `✅ Thanks for adding me to this group!\n\n📌 Type /help to see my commands.\n\nIf you need any help, contact the owner: ${ownerFB}`,
         threadID
       );
     }
 
-    // When a normal user joins
+    // ----- If user joins -----
     try {
-      let { threadName, participantIDs } = await api.getThreadInfo(threadID);
-      let mentions = [], nameArray = [], memLength = [], i = 0;
+      const threadInfo = await api.getThreadInfo(threadID);
+      let mentions = [];
+      let names = [];
 
       for (const user of logMessageData.addedParticipants) {
-        nameArray.push(user.fullName);
+        names.push(user.fullName);
         mentions.push({ tag: user.fullName, id: user.userFbId });
-        memLength.push(participantIDs.length - i++);
       }
-      memLength.sort((a, b) => a - b);
 
-      let msg = `╭•┄┅═══❁🌺❁═══┅┄•╮
-আ্ঁস্ঁসা্ঁলা্ঁমু্ঁ💚আ্ঁলা্ঁই্ঁকু্ঁম্ঁ
-╰•┄┅═══❁🌺❁═══┅┄•╯
+      // Beautiful Bangla welcome message
+      let msg = `╔══❁🌺❁══╗
+   আ্ঁস্ঁসা্ঁলা্ঁমু্ঁ💚আ্ঁলা্ঁই্ঁকু্ঁম্ঁ
+╚══❁🌺❁══╝
 
-হাসি, মজা, ঠাট্টায় গড়ে উঠুক  
-চিরস্থায়ী বন্ধুত্বের বন্ধন।🥰
-ভালোবাসা ও সম্পর্ক থাকুক আজীবন।💝
+✨ প্রিয় ${names.join(", ")} ✨  
+আপনাকে আমাদের সুন্দর পরিবারে স্বাগতম! 🥰  
 
-➤ আশা করি আপনি এখানে হাসি-মজা করে আড্ডা দিতে ভালোবাসবেন।😍  
-➤ সবার সাথে মিলেমিশে থাকবেন।😉  
-➤ খারাপ ব্যবহার করবেন না।🚫  
-➤ এডমিনের কথা শুনবেন ও রুলস মেনে চলবেন।✅  
+💖 এই গ্রুপে থাকুক —  
+হাসি, খুশি, মজা আর অনন্ত বন্ধুত্ব 🌸  
+চলুন একসাথে গড়ে তুলি একটি  
+ভালোবাসায় ভরা বন্ধন 💞  
 
-›› প্রিয় {name},  
-আপনি এই গ্রুপের {soThanhVien} নম্বর মেম্বার!  
+🌷 গ্রুপের নাম: ${threadInfo.threadName} 🌷  
 
-›› গ্রুপ: {threadName}  
+➤ দয়া করে রুলস মেনে চলুন ✅  
+➤ সবার সাথে সুন্দর ব্যবহার করুন 🌺  
+➤ আনন্দে আড্ডা দিন 😍  
 
-💌 🌺 𝐖 𝐄 𝐋 𝐂 𝐎 𝐌 𝐄 🌺 💌  
+📌 অভিযোগ বা সাহায্যের জন্য গ্রুপের মালিকের সাথে যোগাযোগ করুন: ${ownerFB}
+
 ╭─╼╾─╼🌸╾─╼╾───╮  
-   ─꯭─⃝‌‌𝗛𝗶𝗮𝗻𝗮𝘁𝗮 𝗦𝗮𝗻𝗮 🌺  
-╰───╼╾─╼🌸╾─╼╾─╯  
+     𝗛𝗶𝗻𝗮𝘁𝗮 𝗦𝗮𝗻𝗮 🌺  
+╰───╼╾─╼🌸╾─╼╾─╯`;
 
-❖⋆══════════════════════════⋆❖`;
-
-      msg = msg
-        .replace(/\{name}/g, nameArray.join(", "))
-        .replace(/\{soThanhVien}/g, memLength.join(", "))
-        .replace(/\{threadName}/g, threadName);
-
-      const joinGifPath = join(__dirname, "cache", "joinGif");
-      const files = readdirSync(joinGifPath).filter(file =>
-        [".mp4", ".jpg", ".png", ".jpeg", ".gif", ".mp3"].some(ext => file.endsWith(ext))
-      );
-      const selected = files.length > 0
-        ? createReadStream(join(joinGifPath, files[Math.floor(Math.random() * files.length)]))
+      // Load fixed join.jpeg
+      const joinImagePath = join(__dirname, "cache", "joinGif", "join.jpeg");
+      const attachment = existsSync(joinImagePath)
+        ? createReadStream(joinImagePath)
         : null;
 
       return api.sendMessage(
-        selected ? { body: msg, attachment: selected, mentions } : { body: msg, mentions },
+        attachment ? { body: msg, attachment, mentions } : { body: msg, mentions },
         threadID
       );
-    } catch (e) {
-      console.error(e);
+
+    } catch (err) {
+      console.error(err);
+      return api.sendMessage("❌ Sorry, I couldn’t send the welcome message.", threadID);
     }
   }
 };
