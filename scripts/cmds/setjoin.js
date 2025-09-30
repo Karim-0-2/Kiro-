@@ -1,94 +1,153 @@
+const fs = require("fs-extra");
+const path = require("path");
+
 module.exports.config = {
     name: "setjoin",
-    version: "1.0.4",
+    version: "1.0.9",
     hasPermssion: 1,
-    credits: "𝗞𝗮𝗿𝗶𝗺 𝗕𝗲𝗻𝘇𝗶𝗺𝗮",
-    description: "Edit text/animated images when new members join",
-    Category: "Custom",
-    usages: "[gif/text] [Text or url to download gif image]",
+    credits: "𝐇𝐚𝐬𝐢𝐛 𖣘",
+    description: "Tự động gửi text + GIF khi thành viên mới tham gia nhóm",
+    commandCategory: "config",
+    usages: "[gif/text] [Text hoặc URL để tải GIF]",
     cooldowns: 10,
     dependencies: {
         "fs-extra": "",
         "path": ""
     }
-}
+};
 
+// Tạo folder lưu GIF nếu chưa có
 module.exports.onLoad = function () {
-    const { existsSync, mkdirSync } = global.nodemodule["fs-extra"];
-    const { join } = global.nodemodule["path"];
+    const joinGifPath = path.join(__dirname, "..", "events", "cache", "joinGif");
+    if (!fs.existsSync(joinGifPath)) fs.mkdirSync(joinGifPath, { recursive: true });
+};
 
-    const path = join(__dirname, "..", "events", "cache", "joinGif");
-    if (!existsSync(path)) mkdirSync(path, { recursive: true });
+// --- Vietnamese text for code readability ---
+const viText = {
+    savedConfig: "Đã lưu tùy chỉnh của bạn thành công! Dưới đây là phần preview:",
+    tagMember: "[Tên thành viên]",
+    tagType: "[Bạn/các bạn]",
+    tagCountMember: "[Số thành viên]",
+    tagNameGroup: "[Tên nhóm]",
+    gifPathNotExist: "Nhóm của bạn chưa từng cài đặt GIF join!",
+    removeGifSuccess: "Đã gỡ bỏ thành công file GIF của nhóm bạn!",
+    invaildURL: "URL không hợp lệ!",
+    internetError: "Không thể tải file, có thể do vấn đề mạng!",
+    saveGifSuccess: "Đã lưu file GIF thành công, dưới đây là phần preview:"
+};
 
-    return;
+// --- English translation for messages sent by bot ---
+const enText = {
+    "Đã lưu tùy chỉnh của bạn thành công! Dưới đây là phần preview:": "✅ Your custom settings have been saved! Preview below:",
+    "[Tên thành viên]": "[Member Name]",
+    "[Bạn/các bạn]": "[You/All]",
+    "[Số thành viên]": "[Member Count]",
+    "[Tên nhóm]": "[Group Name]",
+    "Nhóm của bạn chưa từng cài đặt GIF join!": "This group hasn't set a join GIF yet!",
+    "Đã gỡ bỏ thành công file GIF của nhóm bạn!": "✅ GIF file removed successfully!",
+    "URL không hợp lệ!": "❌ Invalid URL!",
+    "Không thể tải file, có thể do vấn đề mạng!": "❌ Cannot download file. Check your internet connection!",
+    "Đã lưu file GIF thành công, dưới đây là phần preview:": "✅ GIF saved successfully! Preview below:"
+};
+
+// Hàm lấy text, trả về English khi gửi
+function getText(key) {
+    const vi = viText[key] || key;
+    return enText[vi] || vi;
 }
 
-module.exports.languages = {
-    "vi": {
-        "savedConfig": "Đã lưu tùy chỉnh của bạn thành công! dưới đây sẽ là phần preview:",
-        "tagMember": "[Tên thành viên]",
-        "tagType": "[Bạn/các bạn]",
-        "tagCountMember": "[Số thành viên]",
-        "tagNameGroup": "[Tên nhóm]",
-        "gifPathNotExist": "Nhóm của bạn chưa từng cài đặt gif join",
-        "removeGifSuccess": "Đã gỡ bỏ thành công file gif của nhóm bạn!",
-        "invaildURL": "Url bạn nhập không phù hợp!",
-        "internetError": "Không thể tải file vì url không tồn tại hoặc bot đã xảy ra vấn đề về mạng!",
-        "saveGifSuccess": "Đã lưu file gif của nhóm bạn thành công, bên dưới đây là preview:"
-    },
-    "en": {
-        "savedConfig": "Saved your config, here is preview:",
-        "tagMember": "[Member's name]",
-        "tagType": "[You/They]",
-        "tagCountMember": "[Member number]",
-        "tagNameGroup": "[Thread's name]",
-        "gifPathNotExist":"Your thread didn't set gif join",
-        "removeGifSuccess": "Removed thread's gif!",
-        "invaildURL": "Invalid url!",
-        "internetError": "Can't load file because url doesn't exist or internet have some problem!",
-        "saveGifSuccess": "Saved file gif, here is preview:"
-    }
-}
-
-module.exports.run = async function ({ args, event, api, Threads, getText }) {
+// Xử lý sự kiện khi có thành viên mới
+module.exports.handleEvent = async function ({ event, api, Threads, Users }) {
     try {
-        const { existsSync, createReadStream } = global.nodemodule["fs-extra"];
-        const { join } = global.nodemodule["path"];
+        const { threadID, addedParticipants } = event;
+        if (!addedParticipants || addedParticipants.length === 0) return;
+
+        const data = (await Threads.getData(threadID)).data;
+        const pathGif = path.join(__dirname, "..", "events", "cache", "joinGif", `${threadID}.gif`);
+
+        for (const user of addedParticipants) {
+            const userName = (await Users.getData(user.userID)).name || getText("tagMember");
+
+            let body = data.customJoin ? data.customJoin
+                .replace(/\{name}/g, getText("tagMember"))
+                .replace(/\{type}/g, getText("tagType"))
+                .replace(/\{soThanhVien}/g, getText("tagCountMember"))
+                .replace(/\{threadName}/g, getText("tagNameGroup")) : "";
+
+            if (fs.existsSync(pathGif)) {
+                await api.sendMessage({ body: body || undefined, attachment: fs.createReadStream(pathGif) }, threadID);
+            } else if (body) {
+                await api.sendMessage(body, threadID);
+            }
+        }
+
+    } catch (e) {
+        console.log("Join Event Error:", e);
+    }
+};
+
+// Command cài đặt text/GIF
+module.exports.run = async function ({ args, event, api, Threads }) {
+    try {
         const { threadID, messageID } = event;
-        const msg = args.slice(1, args.length).join(" ");
-        var data = (await Threads.getData(threadID)).data;
+        const msg = args.slice(1).join(" ");
+        const data = (await Threads.getData(threadID)).data;
+        const joinGifPath = path.join(__dirname, "..", "events", "cache", "joinGif");
+        const pathGif = path.join(joinGifPath, `${threadID}.gif`);
 
         switch (args[0]) {
+
             case "text": {
-                data["customJoin"] = msg;
+                if (!msg) return api.sendMessage("❌ Please enter a text!", threadID, messageID);
+                data.customJoin = msg;
                 global.data.threadData.set(parseInt(threadID), data);
                 await Threads.setData(threadID, { data });
-                return api.sendMessage(getText("savedConfig"), threadID, function () {
-                    const body = msg
+
+                const body = msg
                     .replace(/\{name}/g, getText("tagMember"))
                     .replace(/\{type}/g, getText("tagType"))
                     .replace(/\{soThanhVien}/g, getText("tagCountMember"))
                     .replace(/\{threadName}/g, getText("tagNameGroup"));
-                    return api.sendMessage(body, threadID);
-                });
-            }
-            case "gif": {
-                const path = join(__dirname, "..", "events", "cache", "joinGif");
-                const pathGif = join(path, `${threadID}.gif`);
-                if (msg == "remove") {
-                    if (!existsSync(pathGif)) return api.sendMessage(getText("gifPathNotExist"), threadID, messageID);
-                    unlinkSync(pathGif);
-                    return api.sendMessage(getText("removeGifSuccess"), threadID, messageID);
+
+                if (fs.existsSync(pathGif)) {
+                    return api.sendMessage({ body: `${getText("savedConfig")}\n\n${body}`, attachment: fs.createReadStream(pathGif) }, threadID, messageID);
+                } else {
+                    return api.sendMessage(`${getText("savedConfig")}\n\n${body}`, threadID, messageID);
                 }
-                else {
-                    if (!msg.match(/(http(s?):)([/|.|\w|\s|-])*\.(?:gif|GIF)/g)) return api.sendMessage(getText("invaildURL"), threadID, messageID);
+            }
+
+            case "gif": {
+                if (msg === "remove") {
+                    if (!fs.existsSync(pathGif)) return api.sendMessage(getText("gifPathNotExist"), threadID, messageID);
+                    fs.unlinkSync(pathGif);
+                    return api.sendMessage(getText("removeGifSuccess"), threadID, messageID);
+                } else {
+                    if (!/^https?:\/\/.*\.(gif)$/i.test(msg)) return api.sendMessage(getText("invaildURL"), threadID, messageID);
                     try {
                         await global.utils.downloadFile(msg, pathGif);
-                    } catch (e) { return api.sendMessage(getText("internetError"), threadID, messageID); }
-                    return api.sendMessage({ body: getText("saveGifSuccess"), attachment: createReadStream(pathGif) }, threadID, messageID);
+
+                        const customText = data.customJoin ? data.customJoin
+                            .replace(/\{name}/g, getText("tagMember"))
+                            .replace(/\{type}/g, getText("tagType"))
+                            .replace(/\{soThanhVien}/g, getText("tagCountMember"))
+                            .replace(/\{threadName}/g, getText("tagNameGroup")) : "";
+
+                        const messageBody = customText ? `${getText("saveGifSuccess")}\n\n${customText}` : getText("saveGifSuccess");
+
+                        return api.sendMessage({ body: messageBody, attachment: fs.createReadStream(pathGif) }, threadID, messageID);
+                    } catch (e) {
+                        return api.sendMessage(getText("internetError"), threadID, messageID);
+                    }
                 }
             }
-            default: { return global.utils.throwError(this.config.name, threadID, messageID) }
+
+            default: {
+                return api.sendMessage("❌ Invalid command! Use: text or gif", threadID, messageID);
+            }
         }
-    } catch (e) { return console.log(e) };
-}
+
+    } catch (e) {
+        console.log(e);
+        return api.sendMessage("❌ An error occurred, please try again!", event.threadID, event.messageID);
+    }
+};
