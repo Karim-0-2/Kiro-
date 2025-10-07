@@ -28,7 +28,7 @@ function isAllowed(uid) {
 
 module.exports = {
   config: {
-    name: "pair8",
+    name: "pair9",
     countDown: 10,
     role: 0,
     shortDescription: {
