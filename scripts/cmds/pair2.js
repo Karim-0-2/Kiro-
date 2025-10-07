@@ -6,24 +6,37 @@ const path = require("path");
 const baseUrl = "https://raw.githubusercontent.com/Saim12678/Saim69/1a8068d7d28396dbecff28f422cb8bc9bf62d85f/font";
 
 module.exports = {
-  name: "pair2",
-  aliases: ["lovepair2", "match2"],
-  category: "love",
-  description: "💞 Generate a love match with avatars",
-  
-  async execute({ api, event, usersData }) {
+  config: {
+    name: "pair2",
+    aliases: ["lovepair2", "match2"],
+    author: "Hasib",
+    version: "1.0",
+    role: 0,
+    category: "love",
+    shortDescription: {
+      en: "💞 Generate a love match with avatars"
+    },
+    longDescription: {
+      en: "This command calculates a love match between you and a suitable member of the current group. Shows circular avatars, background, converted names with stylish fonts, and love percentage."
+    },
+    guide: {
+      en: "{p}{n} — Use this command in a group to find a love match"
+    }
+  },
+
+  onStart: async function ({ api, event, usersData }) {
     try {
-      // Get sender data
+      
       const senderData = await usersData.get(event.senderID);
       let senderName = senderData.name;
 
-      // Get thread members
+      // Get thread users
       const threadData = await api.getThreadInfo(event.threadID);
       const users = threadData.userInfo;
 
       const myData = users.find(user => user.id === event.senderID);
       if (!myData || !myData.gender) {
-        return api.sendMessage("⚠️ Could not determine your gender.", event.threadID);
+        return api.sendMessage("⚠️ Could not determine your gender.", event.threadID, event.messageID);
       }
 
       const myGender = myData.gender.toUpperCase();
@@ -34,23 +47,23 @@ module.exports = {
       } else if (myGender === "FEMALE") {
         matchCandidates = users.filter(user => user.gender === "MALE" && user.id !== event.senderID);
       } else {
-        return api.sendMessage("⚠️ Your gender is undefined. Cannot find a match.", event.threadID);
+        return api.sendMessage("⚠️ Your gender is undefined. Cannot find a match.", event.threadID, event.messageID);
       }
 
       if (matchCandidates.length === 0) {
-        return api.sendMessage("❌ No suitable match found in the group.", event.threadID);
+        return api.sendMessage("❌ No suitable match found in the group.", event.threadID, event.messageID);
       }
 
       const selectedMatch = matchCandidates[Math.floor(Math.random() * matchCandidates.length)];
       let matchName = selectedMatch.name;
 
-      // Load font map
-      let fontMap = {};
+      let fontMap;
       try {
         const { data } = await axios.get(`${baseUrl}/21.json`);
         fontMap = data;
       } catch (e) {
         console.error("Font load error:", e.message);
+        fontMap = {};
       }
 
       const convertFont = (text) =>
@@ -59,7 +72,6 @@ module.exports = {
       senderName = convertFont(senderName);
       matchName = convertFont(matchName);
 
-      // Canvas setup
       const width = 735, height = 411;
       const canvas = createCanvas(width, height);
       const ctx = canvas.getContext("2d");
@@ -67,7 +79,6 @@ module.exports = {
       const background = await loadImage("https://files.catbox.moe/4l3pgh.jpg");
       ctx.drawImage(background, 0, 0, width, height);
 
-      // Load avatars
       const sIdImage = await loadImage(
         `https://graph.facebook.com/${event.senderID}/picture?width=720&height=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`
       );
@@ -93,7 +104,6 @@ module.exports = {
       drawCircle(ctx, sIdImage, avatarPositions.sender.x, avatarPositions.sender.y, avatarPositions.sender.size);
       drawCircle(ctx, pairPersonImage, avatarPositions.partner.x, avatarPositions.partner.y, avatarPositions.partner.size);
 
-      // Save image
       const outputPath = path.join(__dirname, "pair_output.png");
       const out = fs.createWriteStream(outputPath);
       const stream = canvas.createPNGStream();
@@ -107,19 +117,23 @@ module.exports = {
 🎀  ${senderName} ✨️
 🎀  ${matchName} ✨️
 
-🕊️ Destiny has written your names together 🌹 May your bond last forever ✨️
+🕊️ 𝓓𝓮𝓼𝓽𝓲𝓷𝔂 𝓱𝓪𝓼 𝔀𝓻𝓲𝓽𝓽𝓮𝓷 𝔂𝓸𝓾𝓻 𝓷𝓪𝓶𝓮𝓼 𝓽𝓸𝓰𝓮𝓽𝓱𝓮𝓻  🌹 𝓜𝓪𝔂 𝔂𝓸𝓾𝓻 𝓫𝓸𝓷𝓭 𝓵𝓪𝓼𝓽 𝓯𝓸𝓻𝓮𝓿𝓮𝓻  ✨️  
 
-💘 Compatibility: ${lovePercent}% 💘`;
+💘 𝙲𝚘𝚖𝚙𝚊𝚝𝚒𝚋𝚒𝚕𝚒𝚝𝚢: ${lovePercent}% 💘`;
 
         api.sendMessage(
-          { body: message, attachment: fs.createReadStream(outputPath) },
+          {
+            body: message,
+            attachment: fs.createReadStream(outputPath),
+          },
           event.threadID,
-          () => fs.unlinkSync(outputPath)
+          () => fs.unlinkSync(outputPath),
+          event.messageID
         );
       });
 
     } catch (error) {
-      api.sendMessage("❌ An error occurred: " + error.message, event.threadID);
+      api.sendMessage("❌ An error occurred: " + error.message, event.threadID, event.messageID);
     }
-  }
+  },
 };
