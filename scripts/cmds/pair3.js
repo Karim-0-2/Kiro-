@@ -4,10 +4,10 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "Pair2",
+    name: "Pair3",
     aliases: ["love"],
     version: "1.0",
-    author: "Ew'r Saim X Ariyan | Converted for GoatBot by FireTix",
+    author: "Hasib",
     countDown: 5,
     role: 0,
     shortDescription: "Find your perfect pair",
