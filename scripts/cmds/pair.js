@@ -7,7 +7,7 @@ const path = require("path");
 module.exports = {
   config: {
     name: "pair",
-    author: "xemon",
+    author: "Hasib",
     role: 0,
     shortDescription: "Pair two people in thread",
     longDescription: "Generates a cute pairing image between users",
