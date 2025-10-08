@@ -6,10 +6,10 @@ module.exports = {
   config: {
     name: "autodown",
     aliases: ["autodl"],
-    version: "2.0.0",
-    author: "Nazrul + Upgraded",
+    version: "1.6.9",
+    author: "Nazrul",
     role: 0,
-    description: "Auto-download media from any platform (video, audio, image)",
+    description: "Auto-download media from any  platform",
     category: "media",
     guide: { en: "Send any media link" }
   },
@@ -17,52 +17,48 @@ module.exports = {
   onStart: async function({}) {},
 
   onChat: async function({ api, event }) {
-    const urls = event.body?.match(/https?:\/\/[^\s]+/g);
-    if (!urls?.length) return;
+    const url = event.body?.match(/https?:\/\/[^\s]+/)?.[0];
+    if (!url) return;
 
-    api.setMessageReaction("⏳", event.messageID, () => {}, true);
+    try {
+      api.setMessageReaction("⏳", event.messageID, () => {}, true);
 
-    const apiUrl = (await axios.get("https://raw.githubusercontent.com/nazrul4x/Noobs/main/Apis.json")).data.api;
+      const apiUrl = (await axios.get("https://raw.githubusercontent.com/nazrul4x/Noobs/main/Apis.json")).data.api;
+      const { data } = await axios.get(`${apiUrl}/nazrul/alldlxx?url=${encodeURIComponent(url)}`);
+      
+      if (!data.url) throw new Error(data.error || "No download link found");
 
-    for (let url of urls) {
-      try {
-        const { data } = await axios.get(`${apiUrl}/nazrul/alldlxx?url=${encodeURIComponent(url)}`);
-        if (!data?.url) throw new Error(data.error || "No download link found");
+      const filePath = path.join(__dirname, `n_${Date.now()}.mp4`);
+      const writer = fs.createWriteStream(filePath);
+      const response = await axios({
+        url: data.url,
+        method: 'GET',
+        responseType: 'stream',
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': '*/*',
+          'Connection': 'keep-alive'
+        }
+      });
 
-        const ext = data.url.split(".").pop().split("?")[0] || "mp4";
-        const filePath = path.join(__dirname, `n_${Date.now()}.${ext}`);
+      response.data.pipe(writer);
 
-        const writer = fs.createWriteStream(filePath);
-        const response = await axios({
-          url: data.url,
-          method: 'GET',
-          responseType: 'stream',
-          headers: {
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': '*/*',
-            'Connection': 'keep-alive'
-          }
-        });
+      await new Promise((resolve, reject) => {
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
 
-        response.data.pipe(writer);
+      await api.sendMessage({
+        body: `${data.t}\n🛠️ Platform: ${data.p}`,
+        attachment: fs.createReadStream(filePath)
+      }, event.threadID);
 
-        await new Promise((resolve, reject) => {
-          writer.on('finish', resolve);
-          writer.on('error', reject);
-        });
+      fs.unlink(filePath, () => {});
+      api.setMessageReaction("✅", event.messageID, () => {}, true);
 
-        await api.sendMessage({
-          body: `${data.t}\n🛠️ Platform: ${data.p}`,
-          attachment: fs.createReadStream(filePath)
-        }, event.threadID);
-
-        fs.unlink(filePath, () => {});
-        api.setMessageReaction("✅", event.messageID, () => {}, true);
-
-      } catch (e) {
-        api.setMessageReaction("❌", event.messageID, () => {}, true);
-        console.log(`[Autodown Error]: ${e.message}`);
-      }
+    } catch (e) {
+      api.setMessageReaction("❌", event.messageID, () => {}, true);
+      console.log(e.message);
     }
   }
 };
