@@ -1,8 +1,10 @@
 const axios = require("axios");
 const fs = require("fs-extra");
+const path = require("path");
+
 const baseApiUrl = async () => {
   const base = await axios.get(
-    `https://raw.githubusercontent.com/Blankid018/D1PT0/main/baseApiUrl.json`,
+    "https://raw.githubusercontent.com/Blankid018/D1PT0/main/baseApiUrl.json"
   );
   return base.data.api;
 };
@@ -10,63 +12,61 @@ const baseApiUrl = async () => {
 module.exports = {
   config: {
     name: "alldl",
-    version: "1.0.5",
     author: "Dipto",
-    countDown: 2,
+    version: "1.0.9",
+    cooldown: 3,
     role: 0,
-    description: {
-      en: "𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱 𝘃𝗶𝗱𝗲𝗼 𝗳𝗿𝗼𝗺 𝘁𝗶𝗸𝘁𝗼𝗸, 𝗳𝗮𝗰𝗲𝗯𝗼𝗼𝗸, 𝗜𝗻𝘀𝘁𝗮𝗴𝗿𝗮𝗺, 𝗬𝗼𝘂𝗧𝘂𝗯𝗲, 𝗮𝗻𝗱 𝗺𝗼𝗿𝗲",
-    },
-    category: "𝗠𝗘𝗗𝗜𝗔",
-    guide: {
-      en: "[video_link]",
-    },
+    shortDescription: "Download videos from TikTok, YouTube, Facebook, and more",
+    longDescription: "Download videos from multiple platforms using an all-in-one downloader API.",
+    category: "media",
+    guide: "{pn} [video_link]",
   },
-  onStart: async function ({ api, args, event }) {
-    const dipto = event.messageReply?.body || args[0];
-    if (!dipto) {
-      api.setMessageReaction("❌", event.messageID, (err) => {}, true);
+
+  onStart: async function ({ message, args }) {
+    const link = args[0];
+    if (!link) {
+      return message.react("❌"); // no link = invalid input
     }
+
+    const cacheDir = path.join(__dirname, "cache");
+    const filePath = path.join(cacheDir, "vid.mp4");
+
     try {
-      api.setMessageReaction("⏳", event.messageID, (err) => {}, true);
-      const { data } = await axios.get(`${await baseApiUrl()}/alldl?url=${encodeURIComponent(dipto)}`);
-      const filePath = __dirname + `/cache/vid.mp4`;
-      if(!fs.existsSync(filePath)){
-        fs.mkdir(__dirname + '/cache');
-      }
-      const vid = (
+      await message.react("⏳"); // downloading reaction
+
+      const apiBase = await baseApiUrl();
+      const { data } = await axios.get(`${apiBase}/alldl?url=${encodeURIComponent(link)}`);
+
+      if (!data?.result) throw new Error("No valid download link found.");
+
+      // Ensure cache directory
+      if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
+
+      // Download video
+      const videoData = (
         await axios.get(data.result, { responseType: "arraybuffer" })
       ).data;
-      fs.writeFileSync(filePath, Buffer.from(vid, "utf-8"));
-      const url = await global.utils.shortenURL(data.result);
-      api.setMessageReaction("✅", event.messageID, (err) => {}, true);
-      api.sendMessage({
-          body: `${data.cp || null}\nLink = ${url || null}`,
-          attachment: fs.createReadStream(filePath),
-        },
-        event.threadID,
-        () => fs.unlinkSync(filePath),
-        event.messageID
-      );
-      /*if (dipto.startsWith("https://i.imgur.com")) {
-        const dipto3 = dipto.substring(dipto.lastIndexOf("."));
-        const response = await axios.get(dipto, {
-          responseType: "arraybuffer",
-        });
-        const filename = __dirname + `/cache/dipto${dipto3}`;
-        fs.writeFileSync(filename, Buffer.from(response.data, "binary"));
-        api.sendMessage({
-            body: `✅ | Downloaded from link`,
-            attachment: fs.createReadStream(filename),
-          },
-          event.threadID,
-          () => fs.unlinkSync(filename),
-          event.messageID,
-        );
-      }*/
-    } catch (error) {
-      api.setMessageReaction("❎", event.messageID, (err) => {}, true);
-      api.sendMessage(error.message, event.threadID, event.messageID);
+      fs.writeFileSync(filePath, Buffer.from(videoData, "utf-8"));
+
+      // Shorten URL if available
+      let shortUrl = data.result;
+      if (global.utils && typeof global.utils.shortenURL === "function") {
+        try {
+          shortUrl = await global.utils.shortenURL(data.result);
+        } catch {}
+      }
+
+      // Send file
+      await message.reply({
+        body: `${data.cp || "✅ Download Complete!"}\n🔗 Link: ${shortUrl}`,
+        attachment: fs.createReadStream(filePath),
+      });
+
+      await message.react("✅"); // success
+    } catch {
+      await message.react("❎"); // failed silently
+    } finally {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // clean cache
     }
   },
 };
