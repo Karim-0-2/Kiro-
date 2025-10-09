@@ -63,16 +63,9 @@ module.exports = {
       const canvas = createCanvas(width, height);
       const ctx = canvas.getContext("2d");
 
-      // ✅ Background image list
-      const backgrounds = [
-        "https://i.imgur.com/OntEBiq.png", // Background 1
-        "https://i.imgur.com/IYCoZgc.jpeg", // Background 2
-        "https://i.imgur.com/753i3RF.jpeg"  // Background 3
-      ];
-
-      // Randomly pick one background
-      const randomBgUrl = backgrounds[Math.floor(Math.random() * backgrounds.length)];
-      const background = await loadImage(randomBgUrl);
+      // ✅ Background for BG3
+      const backgroundUrl = "https://i.imgur.com/753i3RF.jpeg"; // Background 3
+      const background = await loadImage(backgroundUrl);
 
       // Load profile pictures
       const sIdImage = await loadImage(
@@ -93,7 +86,6 @@ module.exports = {
       const stream = canvas.createPNGStream();
       stream.pipe(out);
 
-      // Wait for image to be saved
       out.on("finish", () => {
         const lovePercent = Math.floor(Math.random() * 31) + 70;
 
@@ -101,14 +93,10 @@ module.exports = {
 ・${senderName} 🎀
 ・${matchName} 🎀
 💌𝗪𝗶𝘀𝗵 𝘆𝗼𝘂 𝘁𝘄𝗼 𝗵𝘂𝗻𝗱𝗿𝗲𝗱 𝘆𝗲𝗮𝗿𝘀 𝗼𝗳 𝗵𝗮𝗽𝗽𝗶𝗻𝗲𝘀𝘀 ❤️❤️
-
 𝗟𝗼𝘃𝗲 𝗽𝗲𝗿𝗰𝗲𝗻𝘁𝗮𝗴𝗲: ${lovePercent}% 💙`;
 
         api.sendMessage(
-          {
-            body: message,
-            attachment: fs.createReadStream(outputPath),
-          },
+          { body: message, attachment: fs.createReadStream(outputPath) },
           event.threadID,
           () => {
             fs.unlinkSync(outputPath);
