@@ -1,86 +1,84 @@
+const axios = require("axios");
+
+// Convert normal text to bold Unicode (𝗔-𝗭, 𝗮-𝗿)
+function toBoldUnicode(str) {
+  const A = 0x1d400; // 𝗔
+  const a = 0x1d41a; // 𝗮
+  return str
+    .split("")
+    .map((c) => {
+      if (c >= "A" && c <= "Z") return String.fromCharCode(A + c.charCodeAt(0) - 65);
+      if (c >= "a" && c <= "z") return String.fromCharCode(a + c.charCodeAt(0) - 97);
+      return c;
+    })
+    .join("");
+}
+
+// Function to center text within a fixed width
+function centerText(text, width = 30) {
+  const padding = Math.max(0, Math.floor((width - text.length) / 2));
+  return " ".repeat(padding) + text;
+}
+
 module.exports = {
   config: {
     name: "memberlist",
-    version: "3.0",
+    version: "2.2",
     author: "Hasib",
     countDown: 5,
     role: 0,
-    shortDescription: "List all group members with names",
-    longDescription: "Shows group name, ID, and member list with names and IDs (👻 Owner first, then ⭐ Admins, then Members)",
-    category: "info",
+    shortDescription: "Beautiful MemberList with Admin & Owner",
+    longDescription: "Shows detailed member list highlighting Owner and Admins",
+    category: "image",
     guide: "{pn}"
   },
-
   onStart: async function ({ api, event }) {
     try {
-      const OWNER_UID = "61557991443492"; // Bot owner UID
-
-      // Get group info
       const threadInfo = await api.getThreadInfo(event.threadID);
       const participants = threadInfo.participantIDs;
 
-      // Get group admin list
-      const adminIDs = threadInfo.adminIDs.map(a => a.id);
+      const botOwnerUID = "61557991443492"; // Bot owner's UID
+      const senderID = event.senderID;
 
-      // Permission check
-      if (event.senderID !== OWNER_UID && !adminIDs.includes(event.senderID)) {
-        return api.sendMessage(
-          "⛔ Only the group admins or the bot owner can use this command.",
-          event.threadID,
-          event.messageID
-        );
+      // Only bot owner or group admins can run
+      const isAdmin = threadInfo.adminIDs.some(admin => admin.id === senderID);
+      if (senderID !== botOwnerUID && !isAdmin) {
+        return api.setMessageReaction("😹", event.messageID, (err) => err && console.error(err));
       }
 
-      // Fetch all users info
-      const usersInfo = await api.getUserInfo(participants);
+      // Header with centered group name
+      const width = 50;
+      let message = "=".repeat(width) + "\n";
+      message += centerText(threadInfo.name, width) + "\n";
+      message += "=".repeat(width) + "\n";
+      message += `GROUP ID      : ${event.threadID}\n`;
+      message += `TOTAL MEMBERS : ${participants.length}\n`;
+      message += "-".repeat(width) + "\n\n";
 
-      let header = `📋 𝗚𝗥𝗢𝗨𝗣 𝗡𝗔𝗠𝗘: ${threadInfo.name}\n` +
-                   `🆔 𝗚𝗥𝗢𝗨𝗣 𝗜𝗗: ${event.threadID}\n` +
-                   `👥 𝗧𝗢𝗧𝗔𝗟 𝗠𝗘𝗠𝗕𝗘𝗥𝗦: ${participants.length}\n\n`;
+      const botOwner = [];
+      const admins = [];
+      const members = [];
 
-      // Sort: Owner → Admins → Members
-      const sortedMembers = participants.sort((a, b) => {
-        if (a === OWNER_UID) return -1; 
-        if (b === OWNER_UID) return 1;
-        if (adminIDs.includes(a) && !adminIDs.includes(b)) return -1;
-        if (!adminIDs.includes(a) && adminIDs.includes(b)) return 1;
-        return 0;
-      });
+      for (const userId of participants) {
+        const userProfile = await api.getUserInfo(userId);
+        const username = userProfile[userId].name;
+        const userIsAdmin = threadInfo.adminIDs.some(admin => admin.id === userId);
 
-      let count = 1;
-      let chunk = "";
-      let mentions = [];
-
-      for (const userId of sortedMembers) {
-        let username = usersInfo[userId]?.name || "Unknown User";
-
-        // Mark roles
-        if (userId === OWNER_UID) {
-          username = `👻 ${username} (Owner)`;
-        } else if (adminIDs.includes(userId)) {
-          username = `⭐ ${username} (Admin)`;
-        }
-
-        chunk += `${count}. ${username} (UID: ${userId})\n`;
-        mentions.push({ id: userId, tag: usersInfo[userId]?.name || "Unknown User" });
-        count++;
-
-        // Send in safe chunks of 40 mentions
-        if (mentions.length === 40) {
-          await api.sendMessage({ body: header + chunk, mentions }, event.threadID);
-          chunk = "";
-          mentions = [];
+        if (userId === botOwnerUID) {
+          botOwner.push(`USERNAME: ${toBoldUnicode(username)}\nUSER ID : ${userId}\n`);
+        } else if (userIsAdmin) {
+          admins.push(`USERNAME: ${username} (ADMIN)\nUSER ID : ${userId}\n`);
+        } else {
+          members.push(`USERNAME: ${username}\nUSER ID : ${userId}\n`);
         }
       }
 
-      // Send any remaining members
-      if (chunk.length > 0) {
-        await api.sendMessage({ body: header + chunk, mentions }, event.threadID);
-      }
+      message += botOwner.concat(admins, members).join("\n");
+      message += "\n" + "=".repeat(width);
 
+      api.sendMessage(message, event.threadID);
     } catch (error) {
       console.error(error);
-      api.sendMessage("❌ Error fetching member list.", event.threadID, event.messageID);
     }
   }
 };
