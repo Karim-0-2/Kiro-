@@ -1,117 +1,112 @@
-module.exports.config = {
-  name: "youtube",
-  version: "1.0.0",
-  permission: 0,
-  credits: "Nayan",
-  description: "",
-  prefix: true, 
-  category: "Media", 
-  usages: "Link",
-  cooldowns: 5,
-  dependencies: {
-	}
+const a = require("yt-search");
+const b = require("axios");
+const c = require("fs");
+const d = require("path");
+
+const e = "https://apis-toop.vercel.app/aryan/yx";
+
+async function f(g) {
+  const h = await b({ url: g, responseType: "stream" });
+  return h.data;
+}
+
+module.exports = {
+  config: {
+    name: "youtube",
+    aliases: ["ytb"],
+    version: "0.0.9",
+    author: "ArYAN",
+    countDown: 5,
+    role: 0,
+    description: { en: "Search and download YouTube video/audio" },
+    category: "media",
+    guide: { en: "{pn} -v <query|url>\n{pn} -a <query|url>" }
+  },
+
+  onStart: async function ({ api: i, args, event: k, commandName: l }) {
+    const aryan = args;
+    const n = aryan[0];
+    if (!["-v", "-a"].includes(n)) return i.sendMessage("❌ Usage: /ytb [-a|-v] <search or YouTube URL>", k.threadID, k.messageID);
+
+    const o = aryan.slice(1).join(" ");
+    if (!o) return i.sendMessage("❌ Provide a search query or URL.", k.threadID, k.messageID);
+
+    if (o.startsWith("http")) {
+      if (n === "-v") return await p(o, "mp4", i, k);
+      else return await p(o, "mp3", i, k);
+    }
+
+    try {
+      const q = await a(o);
+      const r = q.videos.slice(0, 6);
+      if (r.length === 0) return i.sendMessage("❌ No results found.", k.threadID, k.messageID);
+
+      let s = "";
+      r.forEach((t, u) => {
+        const v = n === "-v" ? t.seconds ? "360p" : "Unknown" : "128kbps";
+        s += `• Title: ${t.title}\n• Quality: ${v}\n\n`;
+      });
+
+      const w = await Promise.all(r.map(x => f(x.thumbnail)));
+
+      i.sendMessage(
+        { body: s + "Reply with number (1-6) to download", attachment: w },
+        k.threadID,
+        (err, y) => {
+          global.GoatBot.onReply.set(y.messageID, {
+            commandName: l,
+            messageID: y.messageID,
+            author: k.senderID,
+            results: r,
+            type: n
+          });
+        },
+        k.messageID
+      );
+    } catch (err) {
+      console.error(err);
+      i.sendMessage("❌ Failed to search YouTube.", k.threadID, k.messageID);
+    }
+  },
+
+  onReply: async function ({ event: z, api: A, Reply: B }) {
+    const { results: C, type: D } = B;
+    const E = parseInt(z.body);
+
+    if (isNaN(E) || E < 1 || E > C.length) return A.sendMessage("❌ Invalid selection. Choose 1-6.", z.threadID, z.messageID);
+
+    const F = C[E - 1];
+    await A.unsendMessage(B.messageID);
+
+    if (D === "-v") await p(F.url, "mp4", A, z);
+    else await p(F.url, "mp3", A, z);
+  }
 };
 
-module.exports.handleReply = async function ({
-    api: e,
-    event: a,
-    handleReply: t
-}) {
-    const n = global.nodemodule.axios,
-        s = global.nodemodule["fs-extra"],
-        i = (global.nodemodule.request, await n.get("https://raw.githubusercontent.com/MR-NAYAN-404/api1/main/video.json")),
-        r = i.data.keyVideo.length,
-        o = i.data.keyVideo[Math.floor(Math.random() * r)],
-        {
-            createReadStream: d,
-            createWriteStream: m,
-            unlinkSync: l,
-            statSync: h
-        } = global.nodemodule["fs-extra"];
-    var c, u = a.body;
-    if (c = u, isNaN(c) || (c < 1 || c > 6)) return e.sendMessage("Choose from 1 -> 6, baby ❤️", a.threadID, a.messageID);
-    e.unsendMessage(t.messageID);
-    try {
-        var g = {
-            method: "GET",
-            url: "https://ytstream-download-youtube-videos.p.rapidapi.com/dl",
-            params: {
-                id: `${t.link[a.body-1]}`
-            },
-            headers: {
-                "x-rapidapi-host": "ytstream-download-youtube-videos.p.rapidapi.com",
-                "x-rapidapi-key": `${o.API_KEY}`
-            }
-        };
-        var p = (await n.request(g)).data,
-            y = p.title;
-        if ("fail" == p.status) return e.sendMessage("Không thể gửi file này.", a.threadID);
-        var f = Object.keys(p.link)[1],
-            b = p.link[f][0];
-        path1 = __dirname + "/cache/1.mp4";
-        const i = (await n.get(`${b}`, {
-            responseType: "arraybuffer"
-        })).data;
-        return s.writeFileSync(path1, Buffer.from(i, "utf-8")), e.unsendMessage(t.messageID), s.statSync(__dirname + "/cache/1.mp4").size > 26e6 ? e.sendMessage("The file could not be sent because it is larger than 25MB..", a.threadID, (() => l(__dirname + "/cache/1.mp4")), a.messageID) : e.sendMessage({
-            body: `» ${y}`,
-            attachment: s.createReadStream(__dirname + "/cache/1.mp4")
-        }, a.threadID, (() => s.unlinkSync(__dirname + "/cache/1.mp4")), a.messageID)
-    } catch {
-        return e.sendMessage("Không thể gửi file này!", a.threadID, a.messageID)
-    }
-    for (let e = 1; e < 7; e++) l(__dirname + `/cache/${e}.png`)
-}, module.exports.run = async function ({
-    api: e,
-    event: a,
-    args: t
-}) {
-    const n = global.nodemodule.axios,
-        s = global.nodemodule["fs-extra"],
-        i = (global.nodemodule.request, await n.get("https://raw.githubusercontent.com/MR-NAYAN-404/api1/main/video.json")),
-        r = i.data.keyVideo.length,
-        o = i.data.keyVideo[Math.floor(Math.random() * r)],
-        d = (global.nodemodule["ytdl-core"], global.nodemodule["simple-youtube-api"]),
-        {
-            createReadStream: m,
-            createWriteStream: l,
-            unlinkSync: h,
-            statSync: c
-        } = global.nodemodule["fs-extra"];
-    var u = ["AIzaSyB5A3Lum6u5p2Ki2btkGdzvEqtZ8KNLeXo", "AIzaSyAyjwkjc0w61LpOErHY_vFo6Di5LEyfLK0", "AIzaSyBY5jfFyaTNtiTSBNCvmyJKpMIGlpCSB4w", "AIzaSyCYCg9qpFmJJsEcr61ZLV5KsmgT1RE5aI4"];
-    const g = u[Math.floor(Math.random() * u.length)],
-        p = new d(g);
-    if (0 == t.length || !t) return e.sendMessage("» Search cannot be left blank!", a.threadID, a.messageID);
-    const y = t.join(" ");
-    if (0 == t.join(" ").indexOf("https://")) {
-        var f = {
-            method: "GET",
-            url: "https://ytstream-download-youtube-videos.p.rapidapi.com/dl",
-            params: {
-                id: t.join(" ").split(/^.*(youtu.be\/|v\/|embed\/|watch\?|youtube.com\/user\/[^#]*#([^\/]*?\/)*)\??v?=?([^#\&\?]*).*/)[3]
-            },
-            headers: {
-                "x-rapidapi-host": "ytstream-download-youtube-videos.p.rapidapi.com",
-                "x-rapidapi-key": `${o.API_KEY}`
-            }
-        };
-        var b = (await n.request(f)).data,
-            v = b.title;
-        if ("fail" == b.status) return e.sendMessage("Unable to send this file.", a.threadID);
-        var k = Object.keys(b.link)[1],
-            I = b.link[k][0];
-        path1 = __dirname + "/cache/1.mp4";
-        const i = (await n.get(`${I}`, {
-            responseType: "arraybuffer"
-        })).data;
-        return s.writeFileSync(path1, Buffer.from(i, "utf-8")), s.statSync(__dirname + "/cache/1.mp4").size > 26e6 ? e.sendMessage("The file could not be sent because it is larger than 25MB..", a.threadID, (() => h(__dirname + "/cache/1.mp4")), a.messageID) : e.sendMessage({
-            body: `» ${v}`,
-            attachment: s.createReadStream(__dirname + "/cache/1.mp4")
-        }, a.threadID, (() => s.unlinkSync(__dirname + "/cache/1.mp4")), a.messageID)
-    }
-    try {
-        const t = global.nodemodule["fs-extra"],
-            n = global.nodemodule.axios;
-        var w = [],
-            _ = "",
-            D = 0,
-            S = 0,
+async function p(q, r, s, t) {
+  try {
+    const { data: u } = await b.get(`${e}?url=${encodeURIComponent(q)}&type=${r}`);
+    const v = u.download_url;
+    if (!u.status || !v) throw new Error("API failed");
+
+    const w = d.join(__dirname, `yt_${Date.now()}.${r}`);
+    const x = c.createWriteStream(w);
+    const y = await b({ url: v, responseType: "stream" });
+    y.data.pipe(x);
+
+    await new Promise((resolve, reject) => {
+      x.on("finish", resolve);
+      x.on("error", reject);
+    });
+
+    await s.sendMessage(
+      { attachment: c.createReadStream(w) },
+      t.threadID,
+      () => c.unlinkSync(w),
+      t.messageID
+    );
+  } catch (err) {
+    console.error(`${r} error:`, err.message);
+    s.sendMessage(`❌ Failed to download ${r}.`, t.threadID, t.messageID);
+  }
+  }
