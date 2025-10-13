@@ -5,115 +5,115 @@ module.exports = {
   config: {
     name: "onlyadminbox",
     aliases: ["onlyadbox", "adboxonly", "adminboxonly"],
-    version: "1.5",
+    version: "1.7",
     author: "Hasib",
     countDown: 5,
-    role: 1, // still keep role check, but override for owner below
+    role: 1,
     description: {
-      vi: "bật/tắt chế độ chỉ quản trị của viên nhóm mới có thể sử dụng bot",
-      en: "turn on/off only admin box can use bot"
+      en: "Turn on/off mode where only group admins can use the bot"
     },
     category: "box chat",
     guide: {
-      vi: "   {pn} [on | off]: bật/tắt chế độ chỉ quản trị viên nhóm mới có thể sử dụng bot"
-        + "\n   {pn} noti [on | off]: bật/tắt thông báo khi người dùng không phải là quản trị viên nhóm sử dụng bot",
-      en: "   {pn} [on | off]: turn on/off the mode only admin of group can use bot"
-        + "\n   {pn} noti [on | off]: turn on/off the notification when user is not admin of group use bot"
+      en: "   {pn} [on | off] → Enable/disable admin-only mode\n   {pn} noti [on | off] → Toggle notifications for non-admins"
     }
   },
 
   langs: {
-    vi: {
-      turnedOn: "Đã bật chế độ chỉ quản trị viên nhóm mới có thể sử dụng bot",
-      turnedOff: "Đã tắt chế độ chỉ quản trị viên nhóm mới có thể sử dụng bot",
-      turnedOnNoti: "Đã bật thông báo khi người dùng không phải là quản trị viên nhóm sử dụng bot",
-      turnedOffNoti: "Đã tắt thông báo khi người dùng không phải là quản trị viên nhóm sử dụng bot",
-      syntaxError: "Sai cú pháp, chỉ có thể dùng {pn} on hoặc {pn} off"
-    },
     en: {
-      turnedOn: "Turned on the mode only admin of group can use bot",
-      turnedOff: "Turned off the mode only admin of group can use bot",
-      turnedOnNoti: "Turned on the notification when user is not admin of group use bot",
-      turnedOffNoti: "Turned off the notification when user is not admin of group use bot",
-      syntaxError: "Syntax error, only use {pn} on or {pn} off"
+      turnedOn: "✅ Admin-only mode enabled. Only group admins can use bot commands.",
+      turnedOff: "🟢 Admin-only mode disabled. Everyone can use bot commands now.",
+      turnedOnNoti: "🔔 Notification for non-admins enabled.",
+      turnedOffNoti: "🔕 Notification for non-admins disabled.",
+      syntaxError: "⚠️ Invalid syntax. Use: {pn} on | off"
     }
   },
 
+  // ================================
+  // 📘 Command Start Handler
+  // ================================
   onStart: async function ({ args, message, event, threadsData, getLang, api, usersData }) {
-    // 🔥 Allow OWNER to bypass role requirement
-    if (event.senderID !== ownerID) {
-      // still enforce role for others
-      const threadInfo = await api.getThreadInfo(event.threadID);
-      const isGroupAdmin = threadInfo.adminIDs.some(e => e.id == event.senderID);
+    const { senderID, threadID } = event;
+
+    // ✅ Owner is always treated as group admin
+    if (senderID !== ownerID) {
+      const threadInfo = await api.getThreadInfo(threadID);
+      const isGroupAdmin = threadInfo.adminIDs.some(e => e.id == senderID);
       if (!isGroupAdmin) {
         return message.reply("❌ Only group admins or the bot owner can toggle this setting.");
       }
     }
 
     let isSetNoti = false;
+    let key = "data.onlyAdminBox";
     let value;
-    let keySetData = "data.onlyAdminBox";
-    let indexGetVal = 0;
 
-    if (args[0] == "noti") {
+    if (args[0] === "noti") {
       isSetNoti = true;
-      indexGetVal = 1;
-      keySetData = "data.hideNotiMessageOnlyAdminBox";
+      key = "data.hideNotiMessageOnlyAdminBox";
+      args.shift();
     }
 
-    if (args[indexGetVal] == "on")
-      value = true;
-    else if (args[indexGetVal] == "off")
-      value = false;
-    else
-      return message.reply(getLang("syntaxError"));
+    if (args[0] === "on") value = true;
+    else if (args[0] === "off") value = false;
+    else return message.reply(getLang("syntaxError"));
 
-    await threadsData.set(event.threadID, isSetNoti ? !value : value, keySetData);
+    await threadsData.set(threadID, isSetNoti ? !value : value, key);
 
-    if (isSetNoti)
-      return message.reply(value ? getLang("turnedOnNoti") : getLang("turnedOffNoti"));
-    else
-      return message.reply(value ? getLang("turnedOn") : getLang("turnedOff"));
+    return message.reply(
+      isSetNoti
+        ? value ? getLang("turnedOnNoti") : getLang("turnedOffNoti")
+        : value ? getLang("turnedOn") : getLang("turnedOff")
+    );
   },
 
+  // ================================
+  // 💬 Chat Handler
+  // ================================
   onChat: async function ({ event, threadsData, message, api, usersData }) {
     const { threadID, senderID, body } = event;
     if (!body) return;
 
-    // Check if "only admin box" mode is enabled
     const onlyAdmin = await threadsData.get(threadID, "data.onlyAdminBox", false);
     if (!onlyAdmin) return;
 
-    // 🔥 If owner -> always allow
+    // ✅ Owner always bypasses admin restriction
     if (senderID === ownerID) {
       if (!greetedGroups.has(threadID)) {
         greetedGroups.add(threadID);
         const ownerName = await usersData.getName(ownerID);
         api.sendMessage(
-          `My Lord ${ownerName}, you have permission to use all commands`,
+          `👑 My Lord ${ownerName}, admin-only mode is active but you have full access to all commands.`,
           threadID,
           (err, info) => {
-            if (!err) {
-              setTimeout(() => {
-                api.unsendMessage(info.messageID);
-              }, 7000);
-            }
+            if (!err) setTimeout(() => api.unsendMessage(info.messageID), 7000);
           }
         );
       }
-      return; // owner can always use
+      return; // Allow owner to use everything
     }
 
-    // Check if user is group admin
+    // 🧩 Check group admin status for others
     const threadInfo = await api.getThreadInfo(threadID);
     const isGroupAdmin = threadInfo.adminIDs.some(e => e.id == senderID);
 
+    // 🚫 Block non-admins (owner bypasses already)
     if (!isGroupAdmin) {
       const hideNoti = await threadsData.get(threadID, "data.hideNotiMessageOnlyAdminBox", false);
       if (!hideNoti) {
         message.reply("⚠️ Only group admins can use bot commands in this group.");
       }
-      return; // block usage
+      return; // Block non-admins
     }
+  },
+
+  // ================================
+  // 🌐 Global Helper (Owner bypasses everywhere)
+  // ================================
+  onCommandCheck: async function ({ event, threadsData }) {
+    // This helper allows owner to use all commands globally, even if adminboxonly = on
+    const onlyAdmin = await threadsData.get(event.threadID, "data.onlyAdminBox", false);
+    if (!onlyAdmin) return true; // feature off, allow everyone
+    if (event.senderID === ownerID) return true; // ✅ owner bypass
+    return false; // others handled per command
   }
 };
