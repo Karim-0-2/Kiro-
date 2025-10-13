@@ -1,10 +1,13 @@
 const { getTime } = global.utils;
 
+// --- Owner UID list (only Hasib)
+const OWNER_UIDS = ["61557991443492"]; // 👑 Main owner Hasib
+
 module.exports = {
 	config: {
 		name: "user",
-		version: "1.4",
-		author: "NTKhang",
+		version: "1.6",
+		author: "NTKhang (Modified by Hasib)",
 		countDown: 5,
 		role: 2,
 		description: {
@@ -13,48 +16,39 @@ module.exports = {
 		},
 		category: "owner",
 		guide: {
-			vi: "   {pn} [find | -f | search | -s] <tên cần tìm>: tìm kiếm người dùng trong dữ liệu bot bằng tên"
+			vi: "   {pn} [find | -f | search | -s] <tên>: tìm kiếm người dùng"
 				+ "\n"
-				+ "\n   {pn} [ban | -b] [<uid> | @tag | reply tin nhắn] <reason>: để cấm người dùng mang id <uid> hoặc người được tag hoặc người gửi của tin nhắn được reply sử dụng bot"
+				+ "\n   {pn} [ban | -b] [<uid> | @tag | reply tin nhắn] <lý do>: cấm người dùng"
 				+ "\n"
-				+ "\n   {pn} unban [<uid> | @tag | reply tin nhắn]: để bỏ cấm người dùng sử dụng bot",
-			en: "   {pn} [find | -f | search | -s] <name to find>: search for users in bot data by name"
+				+ "\n   {pn} unban [<uid> | @tag | reply tin nhắn]: bỏ cấm người dùng",
+			en: "   {pn} [find | -f | search | -s] <name>: search for users"
 				+ "\n"
-				+ "\n   {pn} [ban | -b] [<uid> | @tag | reply message] <reason>: to ban user with id <uid> or tagged user or sender of message replied using bot"
+				+ "\n   {pn} [ban | -b] [<uid> | @tag | reply message] <reason>: ban user"
 				+ "\n"
-				+ "\n   {pn} unban [<uid> | @tag | reply message]: to unban user using bot"
+				+ "\n   {pn} unban [<uid> | @tag | reply message]: unban user"
 		}
 	},
 
 	langs: {
-		vi: {
-			noUserFound: "❌ Không tìm thấy người dùng nào có tên khớp với từ khóa: \"%1\" trong dữ liệu của bot",
-			userFound: "🔎 Tìm thấy %1 người dùng có tên trùng với từ khóa \"%2\" trong dữ liệu của bot:\n%3",
-			uidRequired: "Uid của người cần ban không được để trống, vui lòng nhập uid hoặc tag hoặc reply tin nhắn của 1 người theo cú pháp user ban <uid> <lý do>",
-			reasonRequired: "Lý do ban người dùng không được để trống, vui lòng nhập uid hoặc tag hoặc reply tin nhắn của 1 người theo cú pháp user ban <uid> <lý do>",
-			userHasBanned: "Người dùng mang id [%1 | %2] đã bị cấm từ trước:\n» Lý do: %3\n» Thời gian: %4",
-			userBanned: "Đã cấm người dùng mang id [%1 | %2] sử dụng bot.\n» Lý do: %3\n» Thời gian: %4",
-			uidRequiredUnban: "Uid của người cần unban không được để trống",
-			userNotBanned: "Hiện tại người dùng mang id [%1 | %2] không bị cấm sử dụng bot",
-			userUnbanned: "Đã bỏ cấm người dùng mang id [%1 | %2], hiện tại người này có thể sử dụng bot"
-		},
 		en: {
 			noUserFound: "❌ No user found with name matching keyword: \"%1\" in bot data",
-			userFound: "🔎 Found %1 user with name matching keyword \"%2\" in bot data:\n%3",
-			uidRequired: "Uid of user to ban cannot be empty, please enter uid or tag or reply message of 1 user by user ban <uid> <reason>",
-			reasonRequired: "Reason to ban user cannot be empty, please enter uid or tag or reply message of 1 user by user ban <uid> <reason>",
-			userHasBanned: "User with id [%1 | %2] has been banned before:\n» Reason: %3\n» Date: %4",
-			userBanned: "User with id [%1 | %2] has been banned:\n» Reason: %3\n» Date: %4",
-			uidRequiredUnban: "Uid of user to unban cannot be empty",
-			userNotBanned: "User with id [%1 | %2] is not banned",
-			userUnbanned: "User with id [%1 | %2] has been unbanned"
+			userFound: "🔎 Found %1 user(s) matching \"%2\":\n%3",
+			uidRequired: "❌ Please specify a user ID, tag, or reply to ban someone.",
+			reasonRequired: "❌ Please provide a reason to ban the user.",
+			userHasBanned: "⚠️ User [%1 | %2] is already banned:\n» Reason: %3\n» Date: %4",
+			userBanned: "✅ User [%1 | %2] has been banned.\n» Reason: %3\n» Date: %4",
+			uidRequiredUnban: "❌ Please specify a user ID, tag, or reply to unban someone.",
+			userNotBanned: "ℹ️ User [%1 | %2] is not banned.",
+			userUnbanned: "✅ User [%1 | %2] has been unbanned.",
+			fakeBanOwner: "✅ User [%1 | %2] has been banned.\n» Reason: %3\n» Date: %4",
+			cannotUnbanOwner: "🚫 Owners are never banned — no need to unban."
 		}
 	},
 
 	onStart: async function ({ args, usersData, message, event, prefix, getLang }) {
 		const type = args[0];
 		switch (type) {
-			// find user
+			// Search user
 			case "find":
 			case "-f":
 			case "search":
@@ -66,7 +60,8 @@ module.exports = {
 				message.reply(result.length == 0 ? getLang("noUserFound", keyWord) : getLang("userFound", result.length, keyWord, msg));
 				break;
 			}
-			// ban user
+
+			// Ban user
 			case "ban":
 			case "-b": {
 				let uid, reason;
@@ -83,21 +78,28 @@ module.exports = {
 					uid = args[1];
 					reason = args.slice(2).join(" ");
 				}
-				else return message.SyntaxError();
+				else return message.reply(getLang("uidRequired"));
 
 				if (!uid)
 					return message.reply(getLang("uidRequired"));
 				if (!reason)
 					return message.reply(getLang("reasonRequired", prefix));
-				reason = reason.replace(/\s+/g, ' ');
+
+				reason = reason.trim();
 
 				const userData = await usersData.get(uid);
-				const name = userData.name;
-				const status = userData.banned.status;
-
-				if (status)
-					return message.reply(getLang("userHasBanned", uid, name, userData.banned.reason, userData.banned.date));
+				const name = userData.name || "Unknown";
 				const time = getTime("DD/MM/YYYY HH:mm:ss");
+
+				// 🛡️ Fake ban for owners (show message, but don’t save)
+				if (OWNER_UIDS.includes(uid)) {
+					return message.reply(getLang("fakeBanOwner", uid, name, reason, time));
+				}
+
+				// Real ban for others
+				if (userData.banned.status)
+					return message.reply(getLang("userHasBanned", uid, name, userData.banned.reason, userData.banned.date));
+
 				await usersData.set(uid, {
 					banned: {
 						status: true,
@@ -108,7 +110,8 @@ module.exports = {
 				message.reply(getLang("userBanned", uid, name, reason, time));
 				break;
 			}
-			// unban user
+
+			// Unban user
 			case "unban":
 			case "-u": {
 				let uid;
@@ -123,20 +126,29 @@ module.exports = {
 					uid = args[1];
 				}
 				else
-					return message.SyntaxError();
+					return message.reply(getLang("uidRequiredUnban"));
+
 				if (!uid)
 					return message.reply(getLang("uidRequiredUnban"));
+
+				// Owner never banned — fake skip
+				if (OWNER_UIDS.includes(uid))
+					return message.reply(getLang("cannotUnbanOwner"));
+
 				const userData = await usersData.get(uid);
-				const name = userData.name;
+				const name = userData.name || "Unknown";
 				const status = userData.banned.status;
+
 				if (!status)
 					return message.reply(getLang("userNotBanned", uid, name));
+
 				await usersData.set(uid, {
 					banned: {}
 				});
 				message.reply(getLang("userUnbanned", uid, name));
 				break;
 			}
+
 			default:
 				return message.SyntaxError();
 		}
