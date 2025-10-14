@@ -1,19 +1,22 @@
 const { config } = global.GoatBot;
 const { writeFileSync } = require("fs-extra");
 
-const ownerID = "61557991443492"; // Karim Benzima UID
+// --- Owner setup ---
+const OWNER_ID = "61557991443492"; // Owner UID
+const OWNER_DISPLAY_NAME = "🅺🅰🆁🅸🅼 🅱🅴🅽🆉🅸🅼🅰"; // Always manually set
 
-// Ensure owner is always in admin list
-if (!config.adminBot.includes(ownerID)) {
-    config.adminBot.unshift(ownerID);
-    writeFileSync(global.client.dirConfig, JSON.stringify(config, null, 2));
-}
+// Special 3 admins
+const SPECIAL_ADMINS = [
+    { uid: "61554678316179", name: "Arafat Mondal" },
+    { uid: "100091527859576", name: "Six Pain" },
+    { uid: "61581779215073", name: "ESHA Hawladar" }
+];
 
 module.exports = {
     config: {
         name: "admin",
         aliases: ["ad"],
-        version: "1.5",
+        version: "2.2",
         author: "Hasib",
         countDown: 5,
         role: 0,
@@ -21,8 +24,7 @@ module.exports = {
         longDescription: { en: "Add, remove or see the admin list for this bot" },
         category: "admin",
         guide: {
-            en:
-`{pn} admin list             → Show admin list (everyone can use)
+            en: `{pn} admin list             → Show admin list (everyone can use)
 {pn} admin add <uid|@tag>    → Add admin role for user (admins only)
 {pn} admin remove <uid|@tag> → Remove admin role from user (admins only)
 Reply to a user + {pn} admin add/remove → Add/remove admin by reply`
@@ -34,15 +36,14 @@ Reply to a user + {pn} admin add/remove → Add/remove admin by reply`
             listAdmin:
 `🎭 𝗢𝗪𝗡𝗘𝗥 𝑎𝑛𝑑 𝗔𝗗𝗠𝗜𝗡 🎭
 ♦___________________♦
-♕︎ 𝑶𝑾𝑵𝑬𝑹 ♕︎: ✨ 🅺🅰🆁🅸🅼 🅱🅴🅽🆉🅸🅼🅰 ✨
+♕︎ 𝑶𝑾𝑵𝑬𝑹 ♕︎: ✨ ${OWNER_DISPLAY_NAME} ✨
 _____________________________
 _____♔︎ 𝑨𝑫𝑴𝑰𝑵'𝑺 ♔︎_____
 %1
 _____________________________
-🤖 𝑩𝑶𝑻 ♔︎: ✨|︵✰[_🪽°𝙃𝙞𝙣𝙖𝙩𝙖 𝙎𝙖𝙣𝙖°🐰_]࿐|✨
-♔︎ 𝑂𝑊𝐸𝑅 ♔︎: https://www.facebook.com/karim.benzima.246709
+🤖 𝑩𝑶𝑻 ♔︎: ✨|︵✰[_🪽°Hinata Sana°🐰_]࿐|✨
+♔︎ 𝑂𝑊𝐸𝑅 ♔: https://www.facebook.com/karim.benzima.246709
 ⚠️ Note: Owner is protected — cannot be removed.`,
-            noAdmin: "⚠️ | No admins found!",
             added: "✅ | Added admin role for %1 users:\n%2",
             alreadyAdmin: "⚠️ | %1 users already have admin role:\n%2",
             missingIdAdd: "⚠️ | Please provide an ID, mention a user, or reply to a message to add admin",
@@ -59,34 +60,49 @@ _____________________________
 
         // --- LIST ADMINS (Everyone can use) ---
         if (cmd === "list") {
-            if (config.adminBot.length === 0) return message.reply(getLang("noAdmin"));
-            const getNames = await Promise.all(
-                config.adminBot.map(uid => usersData.getName(uid).then(name => `♡︎ ${name} ♡︎`))
+            let adminNames = [];
+
+            // Show SPECIAL_ADMINS only if their UID is in config.adminBot
+            SPECIAL_ADMINS.forEach(admin => {
+                if (config.adminBot.includes(admin.uid)) {
+                    adminNames.push(`• ${admin.name}`);
+                }
+            });
+
+            // Show other admins who have used bot
+            const dynamicAdmins = config.adminBot.filter(uid => 
+                !SPECIAL_ADMINS.some(a => a.uid === uid) && uid !== OWNER_ID
             );
-            return message.reply(getLang("listAdmin", getNames.join("\n")));
+            for (const uid of dynamicAdmins) {
+                const name = await usersData.getName(uid);
+                adminNames.push(`• ${name}`);
+            }
+
+            // Send the list
+            return message.reply(getLang("listAdmin", adminNames.join("\n")));
         }
 
         // --- ADD / REMOVE ADMINS (Admins only) ---
         if (cmd === "add" || cmd === "remove") {
-            if (!config.adminBot.includes(senderID)) return message.reply(getLang("notAllowed"));
+            if (!config.adminBot.includes(senderID) && senderID !== OWNER_ID)
+                return message.reply(getLang("notAllowed"));
 
             let uids = [];
-            if (Object.keys(event.mentions).length > 0) {
+            if (Object.keys(event.mentions).length > 0)
                 uids = Object.keys(event.mentions);
-            } else if (event.type === "message_reply") {
+            else if (event.type === "message_reply")
                 uids.push(event.messageReply.senderID);
-            } else {
+            else
                 uids = args.slice(1).filter(arg => !isNaN(arg));
-            }
 
-            if (uids.length === 0) {
+            if (uids.length === 0)
                 return message.reply(cmd === "add" ? getLang("missingIdAdd") : getLang("missingIdRemove"));
-            }
 
             if (cmd === "add") {
                 const newAdmins = [], alreadyAdmins = [];
                 for (const uid of uids) {
-                    if (config.adminBot.includes(uid)) alreadyAdmins.push(uid);
+                    if (config.adminBot.includes(uid) || uid === OWNER_ID)
+                        alreadyAdmins.push(uid);
                     else newAdmins.push(uid);
                 }
 
@@ -105,7 +121,8 @@ _____________________________
             if (cmd === "remove") {
                 const removedAdmins = [], notAdmins = [];
                 for (const uid of uids) {
-                    if (uid === ownerID) continue; // Protect owner
+                    // Protect Owner and SPECIAL_ADMINS
+                    if (uid === OWNER_ID || SPECIAL_ADMINS.some(a => a.uid === uid)) continue;
                     if (config.adminBot.includes(uid)) {
                         removedAdmins.push(uid);
                         config.adminBot.splice(config.adminBot.indexOf(uid), 1);
