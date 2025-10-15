@@ -36,8 +36,8 @@ async function sendAndRegister(api, event, text, replyData = {}) {
 
 // Random replies for normal triggers
 const randomReplies = [
-    "Hi 😀, I am here! What's up?","Bolo jaan ki korte panmr jonno",
-    "chup besi Kotha kos ken 😒"," hye 🙃",
+    "😚","Hi 😀, I am here!","What's up?","Bolo jaan ki korte panmr jonno",
+    "chup besi Kotha kos ken 😒"," ji bolেন"," assalamualaikum🥰 "," hye 🙃",
     "Take care yourself , Always prey to almighty Allah and enjoy your life 🥰🥰",
     "Do You Know Who Is The Cutest Person In The World? Now read the 2nd word 🥰😘❤️‍🩹",
     "When God Wanted To Explain What Beauty' Means God Created You 🫵🙈",
@@ -67,7 +67,7 @@ module.exports.onChat = async ({ api, event, message }) => {
 
         // Owner-only special triggers
         if (event.senderID === ownerID) {
-            if (["bou", "bow"].includes(body)) {
+            if (["bou", "oi" , "bow"].includes(body)) {
                 const replies = [
                     "হ্যাঁ, বলো জান শুনছি তোমার কথা 😘😘",
                     "এইতো আমি এখনো 🙈🙈",
@@ -75,16 +75,16 @@ module.exports.onChat = async ({ api, event, message }) => {
                 ];
                 return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
             }
-            if (body === "kire","oi") {
+            if (body === "kire") {
                 const replies = [
-                    "এইতো জান আমি আছি এখানে 🥳😘",
-                    "হ্যাঁ , জান বলো । ডাকছো কেন?",
+                    "তুমি কি রাগ করছো জান ☹️",
+                    "কি করলাম আমি 🙂",
                     "আছি আমি 🙊",
-                    "kita jaan 🙃 miss korso naki 👀🥳"
+                    "আমি কি কিছু করছি 🤔"
                 ];
                 return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
             }
-            if (body === "sali" , "sala") {
+            if (body === "sali") {
                 const replies = [
                     "গালি দাও কেন 😾😾",
                     "আমি তোমার বউ সালি না 😒😒",
