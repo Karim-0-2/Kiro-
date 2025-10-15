@@ -75,7 +75,7 @@ module.exports.onChat = async ({ api, event, message }) => {
                 ];
                 return sendAndRegister(api, event, replies[Math.floor(Math.random() * replies.length)]);
             }
-            if (body === "kire","Oi") {
+            if (body === "kire","oi") {
                 const replies = [
                     "এইতো জান আমি আছি এখানে 🥳😘",
                     "হ্যাঁ , জান বলো । ডাকছো কেন?",
