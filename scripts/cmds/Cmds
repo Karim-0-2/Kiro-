@@ -274,3 +274,8 @@ function unloadScripts(folder, fileName, configCommands, getLang) {
 	return {
 		status: "success",
 		name: fileName
+	};
+}
+
+global.utils.loadScripts = loadScripts;
+global.utils.unloadScripts = unloadScripts;
