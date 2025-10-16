@@ -342,7 +342,7 @@ function loadScripts(folder, fileName, log, configCommands, api, threadModel, us
 				}
 			}
 		}
-		// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” GET OLD COMMAND â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” //
+				// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” GET OLD COMMAND â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” //
 		const oldCommand = require(pathCommand);
 		const oldCommandName = oldCommand?.config?.name;
 		// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” CHECK COMMAND EXIST â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” //
@@ -460,3 +460,77 @@ function loadScripts(folder, fileName, log, configCommands, api, threadModel, us
 		if (indexStorageCommandFilesPath != -1)
 			storageCommandFilesPath.splice(indexStorageCommandFilesPath, 1);
 		storageCommandFilesPath.push({
+			filePath: pathCommand,
+			commandName: [scriptName, ...configCommand.aliases || []]
+		});
+
+		return {
+			status: "success",
+			name: fileName,
+			command
+		};
+	}
+	catch (err) {
+		const defaultError = new Error();
+		defaultError.name = err.name;
+		defaultError.message = err.message;
+		defaultError.stack = err.stack;
+
+		err.stack ? err.stack = removeHomeDir(err.stack || "") : "";
+		fs.writeFileSync(global.client.dirConfigCommands, JSON.stringify(configCommands, null, 2));
+		return {
+			status: "failed",
+			name: fileName,
+			error: err,
+			errorWithThoutRemoveHomeDir: defaultError
+		};
+	}
+}
+
+function unloadScripts(folder, fileName, configCommands, getLang) {
+	const pathCommand = `${process.cwd()}/scripts/${folder}/${fileName}.js`;
+	if (!fs.existsSync(pathCommand)) {
+		const err = new Error(getLang("missingFile", `${fileName}.js`));
+		err.name = "FileNotFound";
+		throw err;
+	}
+	const command = require(pathCommand);
+	const commandName = command.config?.name;
+	if (!commandName)
+		throw new Error(getLang("invalidFileName", `${fileName}.js`));
+	const { GoatBot } = global;
+	const { onChat: allOnChat, onEvent: allOnEvent, onAnyEvent: allOnAnyEvent } = GoatBot;
+	const indexOnChat = allOnChat.findIndex(item => item == commandName);
+	if (indexOnChat != -1)
+		allOnChat.splice(indexOnChat, 1);
+	const indexOnEvent = allOnEvent.findIndex(item => item == commandName);
+	if (indexOnEvent != -1)
+		allOnEvent.splice(indexOnEvent, 1);
+	const indexOnAnyEvent = allOnAnyEvent.findIndex(item => item == commandName);
+	if (indexOnAnyEvent != -1)
+		allOnAnyEvent.splice(indexOnAnyEvent, 1);
+	// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” CHECK ALIASES â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€” //
+	if (command.config.aliases) {
+		let aliases = command.config?.aliases || [];
+		if (typeof aliases == "string")
+			aliases = [aliases];
+		for (const alias of aliases)
+			GoatBot.aliases.delete(alias);
+	}
+	const setMap = folder == "cmds" ? "commands" : "eventCommands";
+	delete require.cache[require.resolve(pathCommand)];
+	GoatBot[setMap].delete(commandName);
+	log.master("UNLOADED", getLang("unloaded", commandName));
+	const commandUnload = configCommands[folder == "cmds" ? "commandUnload" : "commandEventUnload"] || [];
+	if (!commandUnload.includes(`${fileName}.js`))
+		commandUnload.push(`${fileName}.js`);
+	configCommands[folder == "cmds" ? "commandUnload" : "commandEventUnload"] = commandUnload;
+	fs.writeFileSync(global.client.dirConfigCommands, JSON.stringify(configCommands, null, 2));
+	return {
+		status: "success",
+		name: fileName
+	};
+}
+
+global.utils.loadScripts = loadScripts;
+global.utils.unloadScripts = unloadScripts;
