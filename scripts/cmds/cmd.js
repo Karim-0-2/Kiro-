@@ -96,6 +96,17 @@ module.exports = {
 	},
 
 	onStart: async ({ args, message, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, event, commandName, getLang }) => {
+		const permission = global.GoatBot.config.owner;
+  if (!permission.includes(event.senderID)) {
+    api.sendMessage("You dont have enough permission to use this command 🐸👋", event.threadID, event.messageID);
+    return;
+		}
+		onStart: async ({ args, message, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, event, commandName, getLang }) => {
+		const permission = global.GoatBot.config.owner;
+  if (!permission.includes(event.senderID)) {
+    api.sendMessage("You dont have enough permission to use this command 🐸👋", event.threadID, event.messageID);
+    return;
+  }
 		const { unloadScripts, loadScripts } = global.utils;
 		if (
 			args[0] == "load"
@@ -110,77 +121,102 @@ module.exports = {
 				message.reply(
 					getLang("loadedError", infoLoad.name, infoLoad.error.name, infoLoad.error.message)
 					+ "\n" + infoLoad.error.stack
-			filePath: pathCommand,
-			commandName: [scriptName, ...configCommand.aliases || []]
-		});
+				);
+				console.log(infoLoad.errorWithThoutRemoveHomeDir);
+			}
+		}
+		else if (
+			(args[0] || "").toLowerCase() == "loadall"
+			|| (args[0] == "load" && args.length > 2)
+		) {
+			const fileNeedToLoad = args[0].toLowerCase() == "loadall" ?
+				fs.readdirSync(__dirname)
+					.filter(file =>
+						file.endsWith(".js") &&
+						!file.match(/(eg)\.js$/g) &&
+						(process.env.NODE_ENV == "development" ? true : !file.match(/(dev)\.js$/g)) &&
+						!configCommands.commandUnload?.includes(file)
+					)
+					.map(item => item = item.split(".")[0]) :
+				args.slice(1);
+			const arraySucces = [];
+			const arrayFail = [];
 
-		return {
-			status: "success",
-			name: fileName,
-			command
-		};
-	}
-	catch (err) {
-		const defaultError = new Error();
-		defaultError.name = err.name;
-		defaultError.message = err.message;
-		defaultError.stack = err.stack;
+			for (const fileName of fileNeedToLoad) {
+				const infoLoad = loadScripts("cmds", fileName, log, configCommands, api, threadModel, userModel, dashBoardModel, globalModel, threadsData, usersData, dashBoardData, globalData, getLang);
+				if (infoLoad.status == "success")
+					arraySucces.push(fileName);
+				else
+					arrayFail.push(` ❗ ${fileName} => ${infoLoad.error.name}: ${infoLoad.error.message}`);
+			}
 
-		err.stack ? err.stack = removeHomeDir(err.stack || "") : "";
-		fs.writeFileSync(global.client.dirConfigCommands, JSON.stringify(configCommands, null, 2));
-		return {
-			status: "failed",
-			name: fileName,
-			error: err,
-			errorWithThoutRemoveHomeDir: defaultError
-		};
-	}
-}
+			let msg = "";
+			if (arraySucces.length > 0)
+				msg += getLang("loadedSuccess", arraySucces.length);
+			if (arrayFail.length > 0) {
+				msg += (msg ? "\n" : "") + getLang("loadedFail", arrayFail.length, arrayFail.join("\n"));
+				msg += "\n" + getLang("openConsoleToSeeError");
+			}
 
-function unloadScripts(folder, fileName, configCommands, getLang) {
-	const pathCommand = `${process.cwd()}/scripts/${folder}/${fileName}.js`;
-	if (!fs.existsSync(pathCommand)) {
-		const err = new Error(getLang("missingFile", `${fileName}.js`));
-		err.name = "FileNotFound";
-		throw err;
-	}
-	const command = require(pathCommand);
-	const commandName = command.config?.name;
-	if (!commandName)
-		throw new Error(getLang("invalidFileName", `${fileName}.js`));
-	const { GoatBot } = global;
-	const { onChat: allOnChat, onEvent: allOnEvent, onAnyEvent: allOnAnyEvent } = GoatBot;
-	const indexOnChat = allOnChat.findIndex(item => item == commandName);
-	if (indexOnChat != -1)
-		allOnChat.splice(indexOnChat, 1);
-	const indexOnEvent = allOnEvent.findIndex(item => item == commandName);
-	if (indexOnEvent != -1)
-		allOnEvent.splice(indexOnEvent, 1);
-	const indexOnAnyEvent = allOnAnyEvent.findIndex(item => item == commandName);
-	if (indexOnAnyEvent != -1)
-		allOnAnyEvent.splice(indexOnAnyEvent, 1);
-	// ————————————————— CHECK ALIASES ————————————————— //
-	if (command.config.aliases) {
-		let aliases = command.config?.aliases || [];
-		if (typeof aliases == "string")
-			aliases = [aliases];
-		for (const alias of aliases)
-			GoatBot.aliases.delete(alias);
-	}
-	const setMap = folder == "cmds" ? "commands" : "eventCommands";
-	delete require.cache[require.resolve(pathCommand)];
-	GoatBot[setMap].delete(commandName);
-	log.master("UNLOADED", getLang("unloaded", commandName));
-	const commandUnload = configCommands[folder == "cmds" ? "commandUnload" : "commandEventUnload"] || [];
-	if (!commandUnload.includes(`${fileName}.js`))
-		commandUnload.push(`${fileName}.js`);
-	configCommands[folder == "cmds" ? "commandUnload" : "commandEventUnload"] = commandUnload;
-	fs.writeFileSync(global.client.dirConfigCommands, JSON.stringify(configCommands, null, 2));
-	return {
-		status: "success",
-		name: fileName
-	};
-}
+			message.reply(msg);
+		}
+		else if (args[0] == "unload") {
+			if (!args[1])
+				return message.reply(getLang("missingCommandNameUnload"));
+			const infoUnload = unloadScripts("cmds", args[1], configCommands, getLang);
+			infoUnload.status == "success" ?
+				message.reply(getLang("unloaded", infoUnload.name)) :
+				message.reply(getLang("unloadedError", infoUnload.name, infoUnload.error.name, infoUnload.error.message));
+		}
+		else if (args[0] == "install") {
+			let url = args[1];
+			let fileName = args[2];
+			let rawCode;
 
-global.utils.loadScripts = loadScripts;
-global.utils.unloadScripts = unloadScripts;
+			if (!url || !fileName)
+				return message.reply(getLang("missingUrlCodeOrFileName"));
+
+			if (
+				url.endsWith(".js")
+				&& !isURL(url)
+			) {
+				const tmp = fileName;
+				fileName = url;
+				url = tmp;
+			}
+
+			if (url.match(/(https?:\/\/(?:www\.|(?!www)))/)) {
+				global.utils.log.dev("install", "url", url);
+				if (!fileName || !fileName.endsWith(".js"))
+					return message.reply(getLang("missingFileNameInstall"));
+
+				const domain = getDomain(url);
+				if (!domain)
+					return message.reply(getLang("invalidUrl"));
+
+				if (domain == "pastebin.com") {
+					const regex = /https:\/\/pastebin\.com\/(?!raw\/)(.*)/;
+					if (url.match(regex))
+						url = url.replace(regex, "https://pastebin.com/raw/$1");
+					if (url.endsWith("/"))
+						url = url.slice(0, -1);
+				}
+				else if (domain == "github.com") {
+					const regex = /https:\/\/github\.com\/(.*)\/blob\/(.*)/;
+					if (url.match(regex))
+						url = url.replace(regex, "https://raw.githubusercontent.com/$1/$2");
+				}
+
+				rawCode = (await axios.get(url)).data;
+
+				if (domain == "savetext.net") {
+					const $ = cheerio.load(rawCode);
+					rawCode = $("#content").text();
+				}
+			}
+			else {
+				global.utils.log.dev("install", "code", args.slice(1).join(" "));
+				if (args[args.length - 1].endsWith(".js")) {
+					fileName = args[args.length - 1];
+					rawCode = event.body.slice(event.body.indexOf('install') + 7, event.body.indexOf(fileName) - 1);
+					 }
