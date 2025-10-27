@@ -13,7 +13,7 @@ module.exports = {
     name: "song",
     aliases: ["music", "sing"],
     version: "0.0.1",
-    author: "Hasib",
+    author: "ArYAN",
     countDown: 5,
     role: 0,
     shortDescription: "Sing tomake chai",
@@ -101,4 +101,4 @@ async function downloadSong(url, api, event, title = null) {
     console.error(err);
     api.sendMessage(`❌ Failed to download song: ${err.message}`, event.threadID, event.messageID);
   }
-}
+    }
