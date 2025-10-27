@@ -1,5 +1,3 @@
-
-  onStart: async function ({ api: e, event: f, args: g, commandName: cmd }) {
 const a = require("axios");
 const b = require("fs");
 const c = require("path");
